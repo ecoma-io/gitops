@@ -1,0 +1,64 @@
+# Traefik Ingress Controller
+# Reverse proxy & ingress — TLS terminated at Cloudflare edge
+# ==============================================================================
+
+deployment:
+  replicas: 1
+
+# Zero-downtime rolling update — new pod must be ready before old one is removed
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 300m
+    memory: 256Mi
+
+# Disable default LoadBalancer — traffic arrives via Cloudflare Tunnel
+service:
+  type: ClusterIP
+
+# Entrypoints
+ports:
+  web:
+    port: 8000
+    exposedPort: 80
+    protocol: TCP
+  websecure:
+    port: 8443
+    exposedPort: 443
+    protocol: TCP
+    http:
+      tls:
+        enabled: false  # TLS terminated at Cloudflare
+
+# Prometheus metrics
+metrics:
+  prometheus:
+    entryPoint: metrics
+
+# Disable dashboard in production
+ingressRoute:
+  dashboard:
+    enabled: false
+
+# Logs
+logs:
+  general:
+    level: WARN
+  access:
+    enabled: true
+    format: json
+
+# Allow IngressRoutes in any namespace to reference services in other namespaces.
+# Required for platform-routes (argocd, grafana, coder, mailpit) which are
+# deployed from the ingress namespace but target services in other namespaces.
+providers:
+  kubernetesCRD:
+    allowCrossNamespace: true

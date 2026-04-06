@@ -1,0 +1,136 @@
+# ORY Hydra — OAuth2 & OpenID Connect Provider
+# Public API:  https://oauth.ecoma.io  (exposed externally — OAuth2 flows, OIDC discovery)
+# Admin API:   hydra-admin.infra.svc.cluster.local:4445 (internal only — client management)
+# DB:          PostgreSQL (hydra database, auto-migrated on startup)
+# Login UI:    https://account.ecoma.io/login    (Account App handles challenge — no /oauth2/ prefix)
+# Consent UI:  https://account.ecoma.io/consent  (skip_consent per-client for internal tools)
+# ==============================================================================
+
+# Disable Helm-generated secret — use SealedSecret (hydra-sealed-secret.yaml) instead.
+# CRITICAL: SECRETS_SYSTEM must remain stable. If it changes, Hydra cannot decrypt
+# the JWK signing keys stored in PostgreSQL, breaking all OIDC token issuance.
+secret:
+  enabled: false
+
+# Disable Hydra Maester (CRD-based OAuth2 client manager)
+# OAuth2 clients (ArgoCD, Grafana, Coder) will be registered via Hydra Admin API
+# using a PostSync job when each app is onboarded.
+maester:
+  enabled: false
+
+hydra:
+  automigration:
+    enabled: true
+    type: initContainer
+
+  config:
+    dsn: ""  # Injected from hydra-db-url secret via DSN env var
+
+    serve:
+      public:
+        port: 4444
+        cors:
+          enabled: true
+          allowed_origins:
+            - https://account.ecoma.io
+            - https://oauth.ecoma.io
+          allowed_methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - PATCH
+          allowed_headers:
+            - Authorization
+            - Content-Type
+            - X-Request-ID
+          exposed_headers:
+            - Content-Type
+      admin:
+        port: 4445
+      # Allow TLS termination at Cloudflare Tunnel / Traefik layer
+      tls:
+        allow_termination_from:
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"
+
+    urls:
+      self:
+        issuer: https://oauth.ecoma.io
+      # Account App endpoints that handle Hydra login/consent/logout challenges.
+      # kratos-selfservice-ui-node serves: /login, /consent, /logout, /error (no /oauth2/ prefix)
+      login:   https://account.ecoma.io/login
+      consent: https://account.ecoma.io/consent
+      logout:  https://account.ecoma.io/logout
+      error:   https://account.ecoma.io/error
+
+    strategies:
+      # Issue signed JWTs so ArgoCD/Grafana/Coder can validate tokens locally
+      # without calling Hydra's introspection endpoint on every request.
+      access_token: jwt
+
+    oauth2:
+      # Token hook: called on every token issuance to inject Keto-based claims.
+      # Returns { session: { id_token: { grafana_role, platform_roles }, access_token: {...} } }
+      token_hook:
+        url: http://token-hook.infra.svc.cluster.local:80/hook
+
+    ttl:
+      login_consent_request: 30m
+      access_token: 1h
+      id_token: 1h
+      refresh_token: 720h  # 30 days — renew silently on next login
+
+    log:
+      level: warn
+      format: json
+
+deployment:
+  # DSN for automigration init container
+  automigration:
+    extraEnv:
+      - name: DSN
+        valueFrom:
+          secretKeyRef:
+            name: hydra-db-url
+            key: dsn
+
+  # DSN for main hydra container
+  extraEnv:
+    - name: DSN
+      valueFrom:
+        secretKeyRef:
+          name: hydra-db-url
+          key: dsn
+
+  # InitContainer creates the 'hydra' database if it doesn't exist.
+  # Derives the postgres admin URL from hydra-db-url by replacing /hydra? -> /postgres?
+  extraInitContainers: |
+    - name: db-init
+      image: postgres:16-alpine
+      command:
+        - sh
+        - -c
+        - |
+          PGURL=$(echo "$DSN" | sed 's|/hydra?|/postgres?|')
+          psql "$PGURL" -tc "SELECT 1 FROM pg_database WHERE datname = 'hydra'" | \
+            grep -q 1 || psql "$PGURL" -c "CREATE DATABASE hydra WITH OWNER postgres;"
+      env:
+        - name: DSN
+          valueFrom:
+            secretKeyRef:
+              name: hydra-db-url
+              key: dsn
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Prometheus metrics scraping
+serviceMonitor:
+  enabled: false  # Enable when kube-prometheus-stack is deployes and the ServiceMonitor CRD is ready

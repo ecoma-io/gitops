@@ -1,0 +1,36 @@
+# NATS with JetStream
+# Lightweight messaging system for event-driven architecture
+# ==============================================================================
+
+config:
+  cluster:
+    enabled: false  # Single-node
+
+  jetstream:
+    enabled: true
+    fileStore:
+      pvc:
+        enabled: true
+        storageClassName: nvme
+        size: 10Gi
+
+container:
+  merge:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+# Prometheus metrics via /metrics endpoint
+promExporter:
+  enabled: true
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 50m
+      memory: 64Mi

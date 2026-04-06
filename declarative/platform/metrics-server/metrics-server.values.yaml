@@ -1,0 +1,23 @@
+# Metrics Server
+# Cluster resource metrics for HPA/VPA and kubectl top
+# ==============================================================================
+
+replicas: 1
+
+# Zero-downtime rolling update — new pod must be ready before old one is removed
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+args:
+  - --kubelet-insecure-tls  # Required for K3s self-signed kubelet certs

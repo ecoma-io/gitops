@@ -1,0 +1,29 @@
+# Alias service to fix rollout-operator webhook TLS mismatch.
+#
+# The rollout-operator hardcodes its self-signed TLS cert SAN as:
+#   "rollout-operator.<namespace>.svc"
+# But the mimir-distributed Helm chart names its Service "mimir-rollout-operator"
+# (release-name prefix). The MutatingWebhookConfiguration therefore calls the
+# webhook at "mimir-rollout-operator.monitoring.svc:443", which does NOT match
+# the cert SAN → x509 TLS verification fails → sync is blocked.
+#
+# Fix: create an alias Service named "rollout-operator" that routes to the same
+# pods as "mimir-rollout-operator". The kustomization.yaml also patches the
+# MutatingWebhookConfiguration to call "rollout-operator.monitoring.svc:443",
+# which DOES match the cert SAN. The rollout-operator only updates the caBundle
+# in the webhook config (never the service.name), so this patch is stable.
+apiVersion: v1
+kind: Service
+metadata:
+  name: rollout-operator
+  namespace: monitoring
+spec:
+  type: ClusterIP
+  ports:
+    - name: https
+      port: 443
+      protocol: TCP
+      targetPort: 8443
+  selector:
+    app.kubernetes.io/instance: mimir
+    app.kubernetes.io/name: rollout-operator

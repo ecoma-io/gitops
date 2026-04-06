@@ -1,0 +1,28 @@
+# REF: https://github.com/openebs/lvm-localpv/blob/develop/deploy/helm/charts/values.yaml
+# OpenEBS LVM-LocalPV CSI driver for dynamic LVM PersistentVolume provisioning
+# ==============================================================================
+
+# LVM Controller (manages PV lifecycle)
+lvmController:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 50m
+      memory: 128Mi
+
+# LVM Node (DaemonSet — runs on every node)
+lvmNode:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 50m
+      memory: 128Mi
+
+# Disable StorageClass creation — we manage them ourselves in storage-classes.yaml
+storageClass:
+  enabled: false

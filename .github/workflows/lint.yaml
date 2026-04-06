@@ -1,0 +1,165 @@
+name: lint
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # 1. yamllint — YAML syntax and style
+  # ──────────────────────────────────────────────────────────────────────────
+  yamllint:
+    name: yamllint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Run yamllint
+        run: yamllint -c .yamllint.yaml .
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 2. kubeconform — validate Kubernetes manifest schemas
+  # ──────────────────────────────────────────────────────────────────────────
+  kubeconform:
+    name: kubeconform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install kustomize
+        uses: imranismail/setup-kustomize@v3
+        with:
+          kustomize-version: "5.4.3"
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            | tar xz -C /usr/local/bin kubeconform
+          kubeconform -v
+
+      - name: Validate application overlays (all envs)
+        run: |
+          FAILED=0
+          CRD_SCHEMA='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+          for overlay in declarative/applications/*/overlays/*/; do
+            echo "▶ kustomize build $overlay | kubeconform"
+            kustomize build "$overlay" \
+              | kubeconform \
+                  --strict \
+                  --ignore-missing-schemas \
+                  --kubernetes-version 1.31.0 \
+                  --schema-location default \
+                  --schema-location "$CRD_SCHEMA" \
+              || FAILED=1
+          done
+          exit $FAILED
+
+      - name: Validate argocd kustomize
+        run: |
+          CRD_SCHEMA='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+          kustomize build declarative/platform/argocd/ \
+            | kubeconform \
+                --strict \
+                --ignore-missing-schemas \
+                --kubernetes-version 1.31.0 \
+                --schema-location default \
+                --schema-location "$CRD_SCHEMA"
+
+      - name: Validate plain infrastructure
+        run: |
+          FAILED=0
+          CRD_SCHEMA='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+          for cfg in declarative/platform/*/plain-config.json declarative/observability/*/plain-config.json declarative/infras/*/plain-config.json declarative/tools/*/plain-config.json; do
+            dir=$(dirname "$cfg")
+            echo "▶ kustomize build $dir | kubeconform"
+            kustomize build "$dir" \
+              | kubeconform \
+                  --strict \
+                  --ignore-missing-schemas \
+                  --kubernetes-version 1.31.0 \
+                  --schema-location default \
+                  --schema-location "$CRD_SCHEMA" \
+              || FAILED=1
+          done
+          exit $FAILED
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 3. helm-lint — render + validate all infrastructure Helm values
+  # ──────────────────────────────────────────────────────────────────────────
+  helm-lint:
+    name: helm-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "3.17.1"
+
+      - name: Add all Helm repositories
+        run: |
+          helm repo add argo              https://argoproj.github.io/argo-helm
+          helm repo add grafana           https://grafana.github.io/helm-charts
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add traefik           https://traefik.github.io/charts
+          helm repo add sealed-secrets    https://bitnami-labs.github.io/sealed-secrets
+          helm repo add openebs-lvmlocalpv https://openebs.github.io/lvm-localpv
+          helm repo add community-charts  https://community-charts.github.io/helm-charts
+          helm repo add nats              https://nats-io.github.io/k8s/helm/charts
+          helm repo add jouve             https://jouve.github.io/charts
+          helm repo add coder             https://helm.coder.com/v2
+          helm repo add seaweedfs         https://seaweedfs.github.io/seaweedfs/helm
+          helm repo add coredns           https://coredns.github.io/helm
+          helm repo add appscode          https://charts.appscode.com/stable/
+          helm repo add kubernetes-sigs   https://kubernetes-sigs.github.io/metrics-server/
+          helm repo add open-telemetry    https://open-telemetry.github.io/opentelemetry-helm-charts
+          helm repo update
+
+      - name: Lint each infrastructure Helm service
+        run: |
+          FAILED=0
+          for cfg in declarative/platform/*/config.json declarative/observability/*/config.json declarative/infras/*/config.json declarative/tools/*/config.json; do
+            dir=$(dirname "$cfg")
+            svc=$(basename "$dir")
+            chart=$(jq -r '.chart' "$cfg")
+            repo_url=$(jq -r '.chartRepoURL' "$cfg")
+            version=$(jq -r '.version' "$cfg")
+            values="$dir/values.yaml"
+
+            # Resolve repo alias registered above
+            repo_alias=$(helm repo list -o json \
+              | jq -r --arg url "$repo_url" '.[] | select(.url == $url) | .name' \
+              | head -1)
+
+            if [[ -z "$repo_alias" ]]; then
+              echo "⚠️  $svc: no repo alias for $repo_url — skipping"
+              continue
+            fi
+
+            echo "▶ helm lint $svc (${repo_alias}/${chart}@${version})"
+            helm lint "$dir" \
+              --chart-dir-no-check \
+              --dry-run \
+              > /dev/null 2>&1 \
+            || helm template "lint-$svc" "${repo_alias}/${chart}" \
+                --version "$version" \
+                --values "$values" \
+                --debug \
+                > /dev/null \
+            || { echo "❌ FAILED: $svc"; FAILED=1; }
+          done
+          exit $FAILED
+
+      - name: Lint ArgoCD values
+        run: |
+          # ArgoCD is deployed via kustomize (declarative/platform/argocd/) — no separate helm values to lint
+          echo "ArgoCD deployed via kustomize — skipping helm lint"

@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: infra
+
+# postgresql.cnpg.io/Cluster CRD is installed by the cloudnative-pg app (wave -6).
+# This annotation allows ArgoCD to skip dry-run for this resource if CNPG is
+# not yet deployed (e.g. on a fresh bootstrap before wave ordering completes).
+commonAnnotations:
+  argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+
+resources:
+  - cluster.yaml
+  - postgresql-svc.yaml
+  - sealed-secret.yaml

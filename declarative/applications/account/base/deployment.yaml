@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: account
+  labels:
+    app: account
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: account
+  template:
+    metadata:
+      labels:
+        app: account
+    spec:
+      containers:
+        - name: account
+          image: oryd/kratos-selfservice-ui-node:v26.2.0
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            # Kratos public API — used server-side for flow management
+            - name: KRATOS_PUBLIC_URL
+              value: http://kratos-public.infra.svc.cluster.local:80
+            # Kratos browser URL — used client-side for browser redirects
+            - name: KRATOS_BROWSER_URL
+              value: https://api.ecoma.io/identity
+            # Hydra admin API — used for OAuth2 login/consent accept/reject
+            - name: HYDRA_ADMIN_URL
+              value: http://hydra-admin.infra.svc.cluster.local:4445
+            # Cookie signing secret
+            - name: COOKIE_SECRET
+              value: changeme-cookie-secret-at-least-8
+            # CSRF cookie configuration
+            - name: CSRF_COOKIE_NAME
+              value: __Host-account.ecoma.io-x-csrf-token
+            - name: CSRF_COOKIE_SECRET
+              value: changeme-csrf-secret-at-least-8
+            # Port to listen on
+            - name: PORT
+              value: "3000"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health/alive
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10

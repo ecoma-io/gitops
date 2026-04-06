@@ -1,0 +1,33 @@
+# Redis — In-memory data store for caching
+# Service: redis-master.infra.svc.cluster.local:6379
+# Namespace: infra
+# Storage: nvme, 5Gi
+# ==============================================================================
+
+architecture: standalone
+
+auth:
+  enabled: false
+
+commonConfiguration: |-
+  maxmemory 200mb
+  maxmemory-policy allkeys-lru
+
+master:
+  persistence:
+    enabled: true
+    storageClass: nvme
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
+
+replica:
+  replicaCount: 0

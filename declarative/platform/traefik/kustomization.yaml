@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ingress
+
+helmCharts:
+  - name: traefik
+    repo: https://traefik.github.io/charts
+    releaseName: traefik
+    namespace: ingress
+    version: 39.0.7
+    valuesFile: traefik.values.yaml
+
+# Workaround: kustomize v5.8.1 namespace transformer does not apply to
+# helmCharts-generated resources. Use explicit patch to inject namespace.
+patches:
+  - target:
+      kind: ".*"
+    patch: |-
+      - op: add
+        path: /metadata/namespace
+        value: ingress

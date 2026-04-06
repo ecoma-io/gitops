@@ -1,0 +1,95 @@
+# Idempotent seed job for Kratos admin user + Keto platform permissions.
+# Runs as an ArgoCD PostSync hook after every sync/upgrade.
+# Step 1: Ensure admin@ecoma.io identity exists in Kratos.
+# Step 2: Ensure platform#superadmin + grafana_admin SubjectSet exist in Keto.
+# Password is plaintext intentionally — must be changed on first login.
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kratos-seed
+  namespace: infra
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: seed
+          image: curlimages/curl:8.11.1
+          command:
+            - sh
+            - -c
+            - |
+              ADMIN_API="http://kratos-admin.infra.svc.cluster.local:80"
+              KETO_WRITE="http://keto-write.infra.svc.cluster.local:80"
+              KETO_READ="http://keto-read.infra.svc.cluster.local:80"
+              EMAIL="admin@ecoma.io"
+              USERNAME="admin"
+              PASSWORD="Admin123@"
+
+              # ── Step 1: Ensure admin identity exists in Kratos ─────────────
+              echo "=== Step 1: Kratos admin identity ==="
+              RESPONSE=$(curl -sf "$ADMIN_API/admin/identities?credentials_identifier=$EMAIL")
+              COUNT=$(echo "$RESPONSE" | grep -c '"id"' || true)
+
+              if [ "$COUNT" -gt "0" ]; then
+                echo "Identity $EMAIL already exists."
+                ADMIN_UUID=$(echo "$RESPONSE" | grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"//')
+              else
+                echo "Identity not found. Creating admin user..."
+                CREATE_RESP=$(curl -sf \
+                  -X POST "$ADMIN_API/admin/identities" \
+                  -H "Content-Type: application/json" \
+                  -d "{
+                    \"schema_id\": \"default\",
+                    \"traits\": {
+                      \"email\": \"$EMAIL\",
+                      \"username\": \"$USERNAME\"
+                    },
+                    \"credentials\": {
+                      \"password\": {
+                        \"config\": {
+                          \"password\": \"$PASSWORD\"
+                        }
+                      }
+                    },
+                    \"state\": \"active\"
+                  }")
+                ADMIN_UUID=$(echo "$CREATE_RESP" | grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"//')
+                echo "Admin user created."
+              fi
+
+              if [ -z "$ADMIN_UUID" ]; then
+                echo "ERROR: Could not determine admin UUID. Aborting."
+                exit 1
+              fi
+              echo "Admin UUID: $ADMIN_UUID"
+
+              # ── Step 2: Seed platform#superadmin in Keto ───────────────────
+              echo "=== Step 2: Keto platform#superadmin ==="
+              HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+                -X PUT "$KETO_WRITE/admin/relation-tuples" \
+                -H "Content-Type: application/json" \
+                -d "{\"namespace\":\"platform\",\"object\":\"superadmin\",\"relation\":\"member\",\"subject_id\":\"$ADMIN_UUID\"}")
+              echo "Upserted platform#superadmin@$ADMIN_UUID (HTTP $HTTP)"
+
+              # ── Step 3: Seed grafana_admin SubjectSet (inherits superadmin) ─
+              echo "=== Step 3: Keto grafana_admin SubjectSet ==="
+              HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+                -X PUT "$KETO_WRITE/admin/relation-tuples" \
+                -H "Content-Type: application/json" \
+                -d "{\"namespace\":\"platform\",\"object\":\"grafana_admin\",\"relation\":\"member\",\"subject_set\":{\"namespace\":\"platform\",\"object\":\"superadmin\",\"relation\":\"member\"}}")
+              echo "Upserted grafana_admin->superadmin SubjectSet (HTTP $HTTP)"
+
+              echo "=== Seed complete ==="
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

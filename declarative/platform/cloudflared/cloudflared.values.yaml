@@ -1,0 +1,29 @@
+# Cloudflare Tunnel (cloudflared) — kubitodev chart
+# Managed mode: tunnel routes are configured in the CF Zero Trust dashboard
+# ==============================================================================
+
+replicaCount: 1
+
+# Zero-downtime rolling update — new pod must be ready before old one is removed
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+# Managed mode: uses the connector token from the CF Zero Trust dashboard.
+# The secret must contain key 'cf-tunnel-token'.
+# Tunnel routing is configured in the Cloudflare dashboard, not here.
+managed:
+  enabled: true
+  existingSecret: "cloudflared-credentials"
+
+local:
+  enabled: false

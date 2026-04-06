@@ -1,0 +1,76 @@
+# ORY Keto — Permission & Access Control
+# Read API (gRPC): keto-read.infra.svc.cluster.local:80
+# Write API (gRPC): keto-write.infra.svc.cluster.local:80
+# Metrics: keto-metrics.infra.svc.cluster.local:80
+# DB: PostgreSQL (keto database, auto-migrated on startup)
+# ==============================================================================
+
+# Disable helm.sh/hook annotations on Secret to prevent ArgoCD stripping
+secret:
+  enableDefaultAnnotations: false
+  secretAnnotations: {}
+
+# Database migration via initContainer (avoids helm hook issues with ArgoCD)
+keto:
+  automigration:
+    enabled: true
+    type: initContainer
+    extraEnv:
+      - name: DSN
+        valueFrom:
+          secretKeyRef:
+            name: keto-db-url
+            key: dsn
+
+  config:
+    dsn: ""
+    serve:
+      read:
+        port: 4466
+      write:
+        port: 4467
+      metrics:
+        port: 4468
+    namespaces:
+      # platform: platform-wide roles (superadmin, grafana_admin, argocd_admin, ...)
+      # SuperSet inheritance: platform#grafana_admin ← platform#superadmin
+      # Seeded by kratos-seed PostSync job.
+      - id: 0
+        name: platform
+      # organizations: multi-tenant org membership (owner, admin, member)
+      # Relations created/managed by future org management API.
+      - id: 1
+        name: organizations
+
+# InitContainer creates the 'keto' database if it doesn't exist.
+# Derives the postgres admin URL from keto-db-url by replacing /keto? -> /postgres?
+deployment:
+  extraEnv:
+    - name: DSN
+      valueFrom:
+        secretKeyRef:
+          name: keto-db-url
+          key: dsn
+  extraInitContainers: |
+    - name: db-init
+      image: postgres:16-alpine
+      command:
+        - sh
+        - -c
+        - |
+          PGURL=$(echo "$DSN" | sed 's|/keto?|/postgres?|')
+          psql "$PGURL" -tc "SELECT 1 FROM pg_database WHERE datname = 'keto'" | \
+            grep -q 1 || psql "$PGURL" -c "CREATE DATABASE keto WITH OWNER postgres;"
+      env:
+        - name: DSN
+          valueFrom:
+            secretKeyRef:
+              name: keto-db-url
+              key: dsn
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

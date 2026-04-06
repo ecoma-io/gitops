@@ -1,0 +1,89 @@
+# Grafana Tempo - Distributed tracing
+# tempo v1.24.4 (single-binary, app: 2.9.0)
+# Backend: SeaweedFS S3 (http://seaweedfs-s3.infra.svc:8333)
+# ==============================================================================
+
+replicas: 1
+
+# ---------------------------------------------------------------------------
+# Tempo configuration
+# ---------------------------------------------------------------------------
+tempo:
+  # Trace receivers
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+    jaeger:
+      protocols:
+        thrift_http:
+          endpoint: "0.0.0.0:14268"
+        grpc:
+          endpoint: "0.0.0.0:14250"
+    zipkin:
+      endpoint: "0.0.0.0:9411"
+
+  storage:
+    trace:
+      backend: s3
+      s3:
+        bucket: tempo-traces
+        endpoint: seaweedfs-s3.infra.svc:8333
+        region: us-east-1
+        forcepathstyle: true
+        insecure: true
+        access_key: "ecoma"
+        secret_key: "ecoma"
+      wal:
+        path: /var/tempo/wal
+
+  # Retention: 7 days
+  retention: 168h
+
+  # Enable search / query
+  global_override:
+    max_trace_idle_period: 30s
+    max_bytes_per_trace: 5000000
+
+  querier:
+    frontend_worker:
+      frontend_address: "127.0.0.1:9095"
+
+  compactor:
+    compaction:
+      block_retention: 168h
+
+# ---------------------------------------------------------------------------
+# Persistence for WAL
+# ---------------------------------------------------------------------------
+persistence:
+  enabled: true
+  storageClassName: nvme
+  size: 10Gi
+  accessModes:
+    - ReadWriteOnce
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 1Gi
+
+# ---------------------------------------------------------------------------
+# Service — expose query port 3200 for Grafana datasource
+# ---------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 3200
+
+# Expose OTLP ports for application trace ingestion
+serviceAccount:
+  create: true

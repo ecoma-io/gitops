@@ -1,0 +1,80 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+
+resources:
+  # Alias service to satisfy rollout-operator webhook TLS.
+  # See rollout-operator-svc.yaml for full explanation.
+  - rollout-operator-svc.yaml
+  - bucket-init-job.yaml
+
+helmCharts:
+  - name: mimir-distributed
+    repo: https://grafana.github.io/helm-charts
+    releaseName: mimir
+    namespace: monitoring
+    version: 5.9.0-weekly.364
+    valuesFile: mimir.values.yaml
+    includeCRDs: true
+
+# Workaround: kustomize v5.8.1 namespace transformer does not apply to
+# helmCharts-generated resources. Use explicit patch to inject namespace.
+patches:
+  - target:
+      kind: ".*"
+    patch: |-
+      - op: add
+        path: /metadata/namespace
+        value: monitoring
+
+  # Fix rollout-operator webhook TLS mismatch.
+  # The operator hardcodes cert SAN as "rollout-operator.<ns>.svc" but mimir Helm
+  # chart names the Service "mimir-rollout-operator" → webhook clientConfig also
+  # references "mimir-rollout-operator" → x509 SAN mismatch → sync blocked.
+  # Patch all 4 rollout-operator webhooks to call the alias Service "rollout-operator".
+  # The operator only ever patches caBundle (never service.name), so this is stable.
+  - target:
+      group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      name: prepare-downscale-monitoring
+    patch: |-
+      - op: replace
+        path: /webhooks/0/clientConfig/service/name
+        value: rollout-operator
+  - target:
+      group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      name: no-downscale-monitoring
+    patch: |-
+      - op: replace
+        path: /webhooks/0/clientConfig/service/name
+        value: rollout-operator
+  - target:
+      group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      name: pod-eviction-monitoring
+    patch: |-
+      - op: replace
+        path: /webhooks/0/clientConfig/service/name
+        value: rollout-operator
+  - target:
+      group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      name: zpdb-validation-monitoring
+    patch: |-
+      - op: replace
+        path: /webhooks/0/clientConfig/service/name
+        value: rollout-operator
+
+  # Explicitly declare persistentVolumeClaimRetentionPolicy to match K8s default.
+  # Without this, K8s injects {whenDeleted: Retain, whenScaled: Retain} at runtime
+  # causing ArgoCD ServerSideDiff to show a perpetual diff.
+  - target:
+      group: apps
+      kind: StatefulSet
+    patch: |-
+      - op: add
+        path: /spec/persistentVolumeClaimRetentionPolicy
+        value:
+          whenDeleted: Retain
+          whenScaled: Retain

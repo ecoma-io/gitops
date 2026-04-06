@@ -1,0 +1,48 @@
+﻿Business Source License 1.1
+
+Parameters
+----------
+Licensor:           ecoma gitops contributors
+Licensed Work:      The ecoma gitops project and its source code.
+Additional Use Grant: None.
+Change Date:        2028-01-01
+Change License:     Apache License, Version 2.0
+
+Important Notice
+----------------
+Please be advised that this project is currently in its Public Beta / Research phase. 
+The Licensor intends to transition the Licensed Work to a CLOSED-SOURCE or 
+COMMERCIAL model once the core functionality reaches its production-stable version. 
+
+Upon such transition, the Licensor may cease providing further public updates 
+to this repository and may restrict access to future versions of the source code.
+
+Terms
+-----
+The Licensor hereby grants you the right to copy, modify, create derivative
+works, redistribute, and make non-production use of the Licensed Work.
+
+The Licensor hereby grants you the right to make production use of the 
+Licensed Work only if your use does not violate the Additional Use Grant.
+
+Effective on the Change Date, or the fourth anniversary of the first publicly
+available release of a specific version of the Licensed Work under this 
+License, whichever comes first, the Licensor hereby grants you rights under
+the terms of the Change License, and the terms of this License shall no 
+longer apply.
+
+If you make a production use of the Licensed Work that is not permitted by 
+this License, you must contact the Licensor to request a commercial license.
+All use must be consistent with the terms of this License.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.

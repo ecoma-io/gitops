@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: token-hook
+  namespace: infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: token-hook
+  template:
+    metadata:
+      labels:
+        app: token-hook
+    spec:
+      containers:
+        - name: token-hook
+          image: node:22-alpine
+          command: ["node", "/app/server.js"]
+          ports:
+            - containerPort: 3000
+          env:
+            - name: KETO_READ_URL
+              value: http://keto-read.infra.svc.cluster.local:80
+          volumeMounts:
+            - name: server-script
+              mountPath: /app
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        - name: server-script
+          configMap:
+            name: token-hook-server

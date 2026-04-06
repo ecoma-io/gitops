@@ -1,0 +1,18 @@
+# SealedSecret: Grafana OAuth2 client credentials
+# Decrypts to Secret with keys: client_id, client_secret
+# Used by Grafana to authenticate with Hydra (OAuth2/OIDC provider)
+# ==============================================================================
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: grafana-oauth
+  namespace: monitoring
+spec:
+  encryptedData:
+    client_id: AgBZeXD1ZyNr2IyV8kKywa4BxijCRIE0tR76Cx8Rbs78iiV6cNrpYT3sSJ9rTGceaf6yV4bk9Tg4guitJ9urmS9wbzcXM0nB7yDVn8/qSyWqO64eTtMcZERCsajIVQnajUYryWP3+9SLnq7+TfgG8jr9ekfagcFLVZhkJPQ9PaZesdxsrH7ISAE4kf4dB6SOFp4FaOP4ezOb56XtBvfN+r5eBwX0mh7ZoVLVHpP3Og6qO6TJ5CqoAXUvrVp4Vl8KUgpGDi/6F+5h2yWPfMPGJW2lJ5OeykYcHzuqdH8GSKRXGA/fBu9J/nmBgcUIw5pbHBO9nf35/cVOKbZKRI5Eks+yeyUQSiD8qJximZOwLGI46tl7D+rQL7cW6FJhrSU4gyJzfqtkuSeU0EmtDaExvu4eRWovQw7Ekj6bGnbrhVasOz22rVmlGqj61GHI75wnhS3gdHsDdOZURsCgmW3zPlyjXEQ3mwI13eJM7u00h5hWO0w+rSqlLzHQv5s/OZ2BGnBMcsS9JmeTXnja7ZWLsn+bRlbqI9EMV8A5aY8hsahwuqrnjAViYPAnD16FZx0q1F/3cejrihDcj3zvdBqshODRlvKKBo7Qlq30q3tR+cCfwzuXl9Z9ctnLK+SVC0quqwxWuf5B6R07LSQpqpD1urpfL5aT8PNwNCiP6GFOrPtAsRY4pMgoYQLNB1UWdweM6yasfl/rDk1L
+    client_secret: AgDjzGmRDGTXAIopHz2SKKcPoYo4XOskwdeLXpWB4Qgpfp3VEy9vyMvvLvgIWa7fSLWI1BC1ZhtBzmIaVv1d+Bl/EqTJouJxUkZMyEEteTMEUnhyHQHFocWr7iFeYfQm7m6co1Bf4R/IJazAn9EnaA17FFEXN33QIlFBnyVlkeTk7Vo8c3cpycXuV2+7ULJXI07PZIYz3R4+EhwVwZchWnpKxBSNErw6LA+5NihR9lFTtuh8MULB011amLHjUb6h/9dOyu8S/O1DUbAosuw4+fsO9ZRcquUjct1X0YXUJpjhDZo3vKlYS9NCEzKPVkY2rh4g5WfXnWs2Y24TvHfupKYQFqB5A/KoEv400lC20jembiMwYWBMt80C68CAzXhWRT2yMLGGcSGQwG1zEU0Q7E6WGqsv0Mucr/+Jeqg3xLIPjpTHlGKq91czXcP0rqaaCZStKny9/kM4tkzOO926KnwjgVehKz7peWxXLCDR8jXZ+pAmHtJN1pR2pBHBNgbGwbjKiFsBpOJJplRbK73YebWFW/eiHQFmd3prTLZoXZ+Ra8yQMo4blgKQ/T6IP8Slzuu+tFF0OoOPFT9ELuY8qqLImEm40jf2kYcdzIU92siNhrPy0XRuINXukVm1T75O3F4FTTQCgaG8oqIAZajFOc1W1rYCUziUa0P8Dvz4S0UXOiOq+zd7PM8TbXnh24mbVk1TSF5HtZ2MTPv9D1Rgrs6rcb+XEcO+vXyUfuJFlDiEZA==
+  template:
+    metadata:
+      name: grafana-oauth
+      namespace: monitoring
+    type: Opaque

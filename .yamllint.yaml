@@ -1,0 +1,28 @@
+extends: default
+
+rules:
+  # Allow long lines in values files (Helm values often have long strings)
+  line-length:
+    max: 150
+    level: warning
+
+  # Don't enforce document start marker (---)
+  document-start:
+    present: false
+
+  # Allow both true/false
+  truthy:
+    allowed-values: ["true", "false"]
+    check-keys: false
+
+  # Require consistent indentation
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+
+ignore: |
+  docs/
+  README.md
+  sealed-secrets.cert
+  declarative/platform/cloudflared/sealed-secret.yaml

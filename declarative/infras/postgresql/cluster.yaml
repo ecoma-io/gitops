@@ -1,0 +1,43 @@
+# PostgreSQL managed by CloudNativePG (CNPG)
+# Primary service: postgresql-rw.infra.svc.cluster.local:5432
+# Compat alias:    postgresql.infra.svc.cluster.local:5432  (via postgresql-svc.yaml)
+# Superuser credentials: managed by SealedSecret pg-superuser (sealed-secret.yaml).
+# CNPG uses spec.superuserSecret to pin a fixed password instead of auto-generating.
+# To rotate password: re-seal pg-superuser + all *-db-url secrets with new value.
+# ==============================================================================
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgresql
+  namespace: infra
+spec:
+  instances: 1
+
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.6
+
+  storage:
+    storageClass: nvme
+    size: 20Gi
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+
+  postgresql:
+    parameters:
+      shared_buffers: "256MB"
+      effective_cache_size: "768MB"
+      work_mem: "4MB"
+      maintenance_work_mem: "64MB"
+      max_connections: "200"
+      checkpoint_completion_target: "0.9"
+      wal_buffers: "16MB"
+      random_page_cost: "1.1"
+
+  enableSuperuserAccess: true
+
+  superuserSecret:
+    name: pg-superuser

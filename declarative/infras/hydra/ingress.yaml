@@ -1,0 +1,27 @@
+# Ingress for ORY Hydra Public API
+# Exposes OAuth2/OIDC endpoints at https://oauth.ecoma.io
+# Routes to hydra-public service (port 4444) — admin API is NOT exposed.
+#
+# OIDC Discovery: https://oauth.ecoma.io/.well-known/openid-configuration
+# OAuth2 Auth:    https://oauth.ecoma.io/oauth2/auth
+# OAuth2 Token:   https://oauth.ecoma.io/oauth2/token
+# Userinfo:       https://oauth.ecoma.io/userinfo
+# ==============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hydra-public
+  namespace: infra
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: oauth.ecoma.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hydra-public
+                port:
+                  number: 4444

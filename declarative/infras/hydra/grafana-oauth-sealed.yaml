@@ -1,0 +1,18 @@
+# SealedSecret: Grafana OAuth2 client credentials (infra copy)
+# Used by hydra-register-grafana Job to register the OAuth2 client in Hydra.
+# Must contain the same client_id/client_secret as monitoring/grafana-oauth.
+# ==============================================================================
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: grafana-oauth
+  namespace: infra
+spec:
+  encryptedData:
+    client_id: AgCXbDFYv1SQK6vN1bGZ60aTfxuvrG83XMPmBchruv+FWLJu13d0Rs0CwF1+2bKxDMaf8Z6984NeqzzDEa1yCtbTuF3qQEKRceZ0Yth54v5HkqDVTnldrC1rRBFsPCE+Nr4daph+d8YOE9Xipg/HwASvZdFG4zSD5QZJl38WoiT7J6pgkBLahHpkY17rx2MM642hGj3VBLL6xsXATDO7hzPWuqMNetb6NU/7tizRq1q2y9RRsnoaxTrNR4CvdXyUnEmdnlQNJPiEzWVK80JhaZJxhlVL9oeC/ENuq9YP/QJhZ++eHGcf72t2kW3qBVqtbqINrsAoDQfwRJLlSRUkkHlvWBBYWocQfT6Kk0wThM/SDz/a8C9uoGIzNYQzabodR1mD4Y5EkHznoV/vpNjXf2zQbvsIYcajSt9Zu+VS0ZCs27AxbhRt0zp0GD+iuESAE2sz5BKewz3Go+cd2q6iDPkGZhhlCvPv10xaLgX5tu29y4mx3JXhEX0IJx5Sdhnd/+YIHthXDhaNRoP6C7eSqKt5WUYHDsgFaS63WaHoZK6fH+5R8RM5KhxF9CzLl3EFU92YFwlLBQ3efvKRW9yCLQzVC5vNvJh/aQ+neHXokOfIrNLpGtQl03L/p1n6umL0H2/098PtYl77S9dAF7JpGCUFifuwElzZJkqe2jpQ9H35aVfFLaOt6qNIMqTDsLi0f0tjFEQMIeUg
+    client_secret: AgAdDbtj9mubDgla/xitoxrbWLQuiFn4zXPMBKZ49qjTvDjTj79SiIWKVhoWGHHPLfwLFPSlmoA7wjuQ4A4DYEQ4mDiRURRN/tzEkJrYL8K7f5ySuqCNkLew1UhN8JMtp9mxWWQteAqmV0HcdcRphElkGh8mmlIW4H9mEzx258zmPy4irttiYvb9IsLWLEUJDGOuyWbtFiij8Qv6BhLpTl5XFBk6iV09v9zBlKEjgbrcoJRL/MwQsa6bNpM3SRC4AnnllNZRDzUCA+kNjzQ/55XLm1Yzio8z/YmNsieggjtTU8CnqaYxY6TO/D3VwE0Heq/85+7W3+Mer+zlZ1R5llhz3Pl4BifitXr3eXtX9jlyfm6hmNrASeMnSUZU976YYsIsScrkG1H2SsbndQiK1kKUNFUAtgGovWd6oHr0/3UUEDAnWcokTvGRBB3rhBjs7f3JCu46dJW1wPtkGt2TuXTYuWTgoPYWAdqWJZ6nB3z5ptOoryFYkFONi6M/43WEtfaJqoTdsIPUDYUBTOMc6K46rdJou436fZAsh/PNfdhZfu41UdIeqftnkOomKozzGLTx/VY86ALgqlA/qg2ickYtviHZdGCSU/5bbTwmN3LOS6WZfk2zrHdSfVCUO90rEUaFeUQEPt3YhD8s/BHnGyo7R+JuvhvSADaQx0UNzXILtnT7TNHJe2155IA8XCGDYHwuVB2DEaDRdboNnTycdoWS1e/rkb9JnnS6wR7peN18AQ==
+  template:
+    metadata:
+      name: grafana-oauth
+      namespace: infra
+    type: Opaque

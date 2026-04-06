@@ -1,0 +1,17 @@
+# StorageClass for OpenEBS LVM-LocalPV (NVMe)
+# Maps to LVM Volume Group vg-nvme on the server (see docs/infrastructure/hardware.md)
+# ==============================================================================
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nvme
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: local.csi.openebs.io
+parameters:
+  storage: lvm
+  volgroup: vg-nvme
+  fstype: xfs
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+allowVolumeExpansion: true

@@ -1,0 +1,215 @@
+# Grafana Mimir - Long-term metrics storage
+# mimir-distributed v5.9.0-weekly.364
+# Backend: SeaweedFS S3 (http://seaweedfs-s3.infra.svc:8333)
+# Org/tenant: ecoma
+#
+# Architecture: microservices mode, single-node optimized, HA-ready.
+# To scale to HA (multi-node):
+#   1. Ingester: enable zoneAwareReplication, set replicas per zone, bump replication_factor to 3
+#   2. Store-gateway: already zone-aware (3 zones) — just increase replicas per zone
+#   3. Stateless components (distributor, querier, query-frontend): increase replicas
+#   4. Compactor, ruler, alertmanager: increase replicas as needed
+# ==============================================================================
+
+# Disable bundled MinIO — we use SeaweedFS S3
+minio:
+  enabled: false
+
+# Classic architecture: disable Kafka ingest-storage (distributor → ingester directly)
+# Without this, the chart defaults to kafka.enabled=true (ingest-storage architecture)
+# which also forces zone-aware store-gateway (3 zones) regardless of zoneAwareReplication setting.
+kafka:
+  enabled: false
+
+# ---------------------------------------------------------------------------
+# Global Mimir configuration
+# ---------------------------------------------------------------------------
+mimir:
+  structuredConfig:
+    # Multi-tenancy off for simplicity (single org = ecoma)
+    multitenancy_enabled: true
+
+    common:
+      storage:
+        backend: s3
+        s3:
+          endpoint: seaweedfs-s3.infra.svc:8333
+          region: us-east-1
+          insecure: true
+          access_key_id: "ecoma"
+          secret_access_key: "ecoma"
+
+    blocks_storage:
+      s3:
+        bucket_name: mimir-blocks
+      tsdb:
+        dir: /data/tsdb
+
+    ruler_storage:
+      s3:
+        bucket_name: mimir-ruler
+
+    alertmanager_storage:
+      s3:
+        bucket_name: mimir-alertmanager
+
+    # Classic architecture: disable ingest-storage (Kafka) mode
+    ingest_storage:
+      enabled: false
+
+    # Single-node: replication_factor = 1 (increase to 3 for HA)
+    ingester:
+      # Classic mode (no Kafka): ingester MUST accept gRPC Push from distributor.
+      # Chart 5.9.0-weekly.364 defaults push_grpc_method_enabled=false (ingest-storage mode).
+      push_grpc_method_enabled: true
+      ring:
+        replication_factor: 1
+
+    limits:
+      ingestion_rate: 30000
+      ingestion_burst_size: 50000
+      max_global_series_per_user: 1500000
+
+# ---------------------------------------------------------------------------
+# Component replicas — single-node, HA-ready microservices
+# Store-gateway: zone-aware (3 zones × 1 replica) for zero-downtime HA migration
+# Ingester: zone-aware disabled (enable + increase replicas for HA)
+# Stateless components: 1 replica each (scale horizontally for HA)
+# ---------------------------------------------------------------------------
+ingester:
+  replicas: 1
+  zoneAwareReplication:
+    enabled: false
+  persistentVolume:
+    storageClass: nvme
+    size: 20Gi
+  topologySpreadConstraints:
+    maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+distributor:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+querier:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+query-frontend:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+query-scheduler:
+  # Chart enforces minimum 2 replicas for query-scheduler (lightweight, ~30Mi each)
+  replicas: 2
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+compactor:
+  replicas: 1
+  persistentVolume:
+    storageClass: nvme
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+store-gateway:
+  # Zone-aware replication is kept enabled for HA-readiness.
+  # Chart creates 3 zone StatefulSets (zone-a/b/c) with 1 replica each.
+  # For HA: increase replicas per zone — no architectural change needed.
+  replicas: 1
+  zoneAwareReplication:
+    enabled: true
+  persistentVolume:
+    storageClass: nvme
+    size: 10Gi
+  topologySpreadConstraints:
+    maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+ruler:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+alertmanager:
+  enabled: true
+  replicas: 1
+  persistentVolume:
+    storageClass: nvme
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Nginx gateway (query + push entry point)
+nginx:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Rollout operator needed by the chart.
+# The operator is deployed as a subchart but the parent chart controls service/webhook
+# naming independently (using {{ .Release.Name }}-rollout-operator convention).
+# TLS cert SAN fix is handled via kustomize patches in kustomization.yaml.
+rollout-operator:
+  enabled: true

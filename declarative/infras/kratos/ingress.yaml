@@ -1,0 +1,33 @@
+# Ingress for ORY Kratos Public API
+# Exposes self-service flows at https://api.ecoma.io/identity
+# Routes to kratos-public service (port 80 → container 4433).
+#
+# This path-based ingress serves as the authentication API endpoint for:
+#   - Browser-initiated self-service flows (login, registration, recovery, settings)
+#   - Kratos session validation (/sessions/whoami) called by the Account App backend
+#   - WebAuthn JS helper (/.well-known/ory/webauthn.js) for hardware key support
+#
+# NOTE: The Account App (account.ecoma.io) will coordinate with this endpoint.
+# When building the Account App, set KRATOS_PUBLIC_URL=https://api.ecoma.io/identity
+# in the frontend and use Kratos self-service SDK (@ory/client-fetch).
+# ==============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kratos-public
+  namespace: infra
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: infra-kratos-strip-prefix@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: api.ecoma.io
+      http:
+        paths:
+          - path: /identity
+            pathType: Prefix
+            backend:
+              service:
+                name: kratos-public
+                port:
+                  number: 80

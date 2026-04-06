@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: coder
+
+resources:
+  - sealed-secret.yaml
+
+helmCharts:
+  - name: coder
+    repo: https://helm.coder.com/v2
+    releaseName: coder
+    namespace: coder
+    version: 2.31.8
+    valuesFile: coder.values.yaml
+
+# Workaround: kustomize v5.8.1 namespace transformer does not apply to
+# helmCharts-generated resources. Use explicit patch to inject namespace.
+patches:
+  - target:
+      kind: ".*"
+    patch: |-
+      - op: add
+        path: /metadata/namespace
+        value: coder

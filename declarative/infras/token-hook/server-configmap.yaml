@@ -1,0 +1,115 @@
+# Hydra token hook — lightweight Node.js webhook that injects Keto-based
+# platform roles into OIDC token claims on every Hydra token issuance.
+#
+# Flow:
+#   Hydra token endpoint
+#     → POST /hook (this service, payload: {session:{id_token:{subject:"uuid",...}}, request:{...}})
+#       → GET keto-read/relation-tuples/check (is subject a platform superadmin?)
+#       → GET keto-read/relation-tuples/check (is subject a platform grafana_admin?)
+#     ← { session: { id_token: { grafana_role }, access_token: { platform_roles } } }
+#   Hydra merges claims into JWT
+#
+# Grafana reads `grafana_role` from the ID token via role_attribute_path.
+# Non-platform users get no grafana_role → blocked by role_attribute_strict.
+# ==============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: token-hook-server
+  namespace: infra
+data:
+  server.js: |
+    'use strict'
+    const http = require('http')
+
+    const KETO_READ = process.env.KETO_READ_URL || 'http://keto-read.infra.svc.cluster.local:80'
+    const PORT = 3000
+
+    async function checkPlatformRole(subjectId, object) {
+      const params = new URLSearchParams({
+        namespace: 'platform',
+        object,
+        relation: 'member',
+        subject_id: subjectId,
+      })
+      try {
+        const res = await fetch(`${KETO_READ}/relation-tuples/check?${params}`, {
+          signal: AbortSignal.timeout(3000),
+        })
+        if (!res.ok) return false
+        const body = await res.json()
+        return body.allowed === true
+      } catch {
+        return false
+      }
+    }
+
+    const server = http.createServer((req, res) => {
+      if (req.method === 'GET' && req.url === '/health') {
+        res.writeHead(200)
+        res.end('ok')
+        return
+      }
+      if (req.method !== 'POST') {
+        res.writeHead(405)
+        res.end()
+        return
+      }
+
+      let body = ''
+      req.on('data', chunk => { body += chunk })
+      req.on('end', async () => {
+        const respond = (payload) => {
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify(payload))
+        }
+
+        try {
+          const payload = JSON.parse(body)
+          console.error('[token-hook] received payload:', JSON.stringify(payload))
+          // Hydra sends subject at session.id_token.subject (NOT .sub)
+          const subject = payload.session?.id_token?.subject
+
+          if (!subject) {
+            console.error('[token-hook] no subject found, returning empty claims')
+            respond({ session: { id_token: {}, access_token: {} } })
+            return
+          }
+          console.error('[token-hook] subject:', subject)
+
+          // Query Keto roles in parallel
+          const [isSuperAdmin, isGrafanaAdmin] = await Promise.all([
+            checkPlatformRole(subject, 'superadmin'),
+            checkPlatformRole(subject, 'grafana_admin'),
+          ])
+
+          const platformRoles = []
+          let grafanaRole = null
+
+          if (isSuperAdmin) {
+            platformRoles.push('superadmin')
+            grafanaRole = 'GrafanaAdmin'
+          } else if (isGrafanaAdmin) {
+            platformRoles.push('grafana_admin')
+            grafanaRole = 'Admin'
+          }
+
+          const idTokenClaims = {}
+          if (grafanaRole) idTokenClaims.grafana_role = grafanaRole
+          if (platformRoles.length) idTokenClaims.platform_roles = platformRoles
+
+          respond({
+            session: {
+              id_token: idTokenClaims,
+              access_token: { platform_roles: platformRoles },
+            },
+          })
+        } catch (err) {
+          console.error('[token-hook] error:', err.message)
+          // Return empty claims on error — never block login
+          respond({ session: { id_token: {}, access_token: {} } })
+        }
+      })
+    })
+
+    server.listen(PORT, () => console.log(`[token-hook] listening on :${PORT}`))

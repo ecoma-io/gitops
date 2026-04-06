@@ -1,0 +1,106 @@
+# Grafana Loki - Log aggregation
+# loki v6.55.0 (app: 3.6.7)
+# Mode: SingleBinary (monolithic, single pod) — suitable for single-node
+# Backend: SeaweedFS S3 (http://seaweedfs-s3.infra.svc:8333)
+# Org/tenant: ecoma
+# ==============================================================================
+
+# Single-binary (monolithic) deployment
+deploymentMode: SingleBinary
+
+# Disable bundled MinIO
+minio:
+  enabled: false
+
+# Loki configuration
+loki:
+  auth_enabled: true
+
+  commonConfig:
+    # Single-node: replication_factor = 1
+    replication_factor: 1
+    path_prefix: /var/loki
+
+  storage:
+    type: s3
+    bucketNames:
+      chunks: loki-chunks
+      ruler: loki-ruler
+      admin: loki-admin
+    s3:
+      endpoint: http://seaweedfs-s3.infra.svc:8333
+      region: us-east-1
+      insecure: true
+      access_key_id: "ecoma"
+      secret_access_key: "ecoma"
+      s3forcepathstyle: true
+
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: s3
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+
+  limits_config:
+    ingestion_rate_mb: 20
+    ingestion_burst_size_mb: 40
+    max_global_streams_per_user: 10000
+    retention_period: 7d
+
+  # Enable ruler for recording rules
+  rulerConfig:
+    storage:
+      type: s3
+      s3:
+        endpoint: http://seaweedfs-s3.infra.svc:8333
+        region: us-east-1
+        s3forcepathstyle: true
+        insecure: true
+        access_key_id: "ecoma"
+        secret_access_key: "ecoma"
+        bucketnames: loki-ruler
+
+# ---------------------------------------------------------------------------
+# Single-binary pod settings
+# ---------------------------------------------------------------------------
+singleBinary:
+  replicas: 1
+
+  persistence:
+    enabled: true
+    storageClass: nvme
+    size: 20Gi
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+# ---------------------------------------------------------------------------
+# Gateway (nginx reverse proxy for multi-tenant path routing)
+# ---------------------------------------------------------------------------
+gateway:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Disable distributed components (not used in SingleBinary mode)
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0

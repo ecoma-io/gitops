@@ -1,0 +1,30 @@
+# Mailpit — Email & SMTP testing tool
+# Used by dev workspaces and staging (Mailpit) for email testing
+# SMTP endpoint: mailpit-smtp.infra.svc.cluster.local:25
+# Web UI: https://mailpit.ecoma.io (protected by Cloudflare Zero Trust)
+# ==============================================================================
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+service:
+  http:
+    type: ClusterIP
+  smtp:
+    type: ClusterIP
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  hostname: mailpit.ecoma.io
+  path: /
+  pathType: Prefix
+
+# No persistence — email data is ephemeral (testing only)
+persistence:
+  enabled: false

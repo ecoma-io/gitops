@@ -1,0 +1,19 @@
+# Backward-compatibility alias Service
+# Maps "postgresql.infra.svc.cluster.local:5432" → CNPG primary (postgresql-rw)
+# This preserves all existing sealed secret DSN strings without re-sealing.
+# ==============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql
+  namespace: infra
+spec:
+  type: ClusterIP
+  selector:
+    cnpg.io/cluster: postgresql
+    role: primary
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+      protocol: TCP

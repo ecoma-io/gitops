@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kube-system
+
+resources:
+  - storage-class-nvme.yaml
+  - storage-class-hdd.yaml
+
+helmCharts:
+  - name: lvm-localpv
+    repo: https://openebs.github.io/lvm-localpv
+    releaseName: openebs-lvm
+    namespace: kube-system
+    version: 1.8.1
+    valuesFile: openebs-lvm.values.yaml
+    includeCRDs: false
+
+patches:
+  - target:
+      kind: Deployment
+      name: openebs-lvm-lvm-localpv-controller
+    patch: |-
+      - op: add
+        path: /metadata/namespace
+        value: kube-system
+  - target:
+      kind: DaemonSet
+      name: openebs-lvm-lvm-localpv-node
+    patch: |-
+      - op: add
+        path: /metadata/namespace
+        value: kube-system
+  - target:
+      kind: Service
+      name: openebs-lvm-lvm-localpv-node-service
+    patch: |-
+      - op: add
+        path: /metadata/namespace
+        value: kube-system
+

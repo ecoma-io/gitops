@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tempo-bucket-init
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: bucket-init
+          image: amazon/aws-cli:2.34.28
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              value: "ecoma"
+            - name: AWS_SECRET_ACCESS_KEY
+              value: "ecoma"
+            - name: AWS_DEFAULT_REGION
+              value: "us-east-1"
+          command:
+            - sh
+            - -c
+            - |
+              ENDPOINT="http://seaweedfs-s3.infra.svc:8333"
+              echo "Waiting for SeaweedFS S3 to be ready..."
+              until aws s3api list-buckets --endpoint-url "$ENDPOINT" >/dev/null 2>&1; do
+                echo "SeaweedFS S3 not ready yet, retrying in 5 seconds..."
+                sleep 5
+              done
+              echo "SeaweedFS S3 is ready."
+              BUCKET="tempo-traces"
+              if aws s3api head-bucket --bucket "$BUCKET" --endpoint-url "$ENDPOINT" >/dev/null 2>&1; then
+                echo "Bucket $BUCKET already exists."
+              else
+                aws s3api create-bucket --bucket "$BUCKET" --endpoint-url "$ENDPOINT" --region us-east-1
+                echo "Bucket $BUCKET created."
+              fi
+              echo "All Tempo S3 buckets initialized."

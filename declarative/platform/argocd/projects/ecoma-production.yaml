@@ -1,0 +1,15 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ecoma-production
+  namespace: argocd
+spec:
+  description: Ecoma production environment applications
+  sourceRepos:
+    - https://github.com/ecoma-io/gitops.git
+  destinations:
+    - namespace: 'ecoma-prod'
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'

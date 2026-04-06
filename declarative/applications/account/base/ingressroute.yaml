@@ -1,0 +1,16 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: account
+  namespace: account
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`account.ecoma.io`)
+      services:
+        - name: account
+          port: 80
+      middlewares:
+        - name: account-env-header

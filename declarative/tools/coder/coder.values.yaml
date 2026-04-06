@@ -1,0 +1,59 @@
+# Coder — Cloud Development Environment
+# Web UI: https://coder.ecoma.io
+# Namespace: coder
+# DB: PostgreSQL (coder database, auto-migrated by Coder on startup)
+# Access: Cloudflare Zero Trust
+# ==============================================================================
+
+coder:
+  env:
+    - name: CODER_ACCESS_URL
+      value: "https://coder.ecoma.io"
+    - name: CODER_PG_CONNECTION_URL
+      valueFrom:
+        secretKeyRef:
+          name: coder-db-url
+          key: url
+    - name: CODER_PROMETHEUS_ADDRESS
+      value: "0.0.0.0:2112"
+    # Disable built-in GitHub OAuth (configure explicitly if needed)
+    - name: CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE
+      value: "false"
+
+  # InitContainer creates the 'coder' database if it doesn't exist.
+  # Derives the postgres admin URL from coder-db-url by replacing /coder? -> /postgres?
+  # This avoids needing a separate SealedSecret for the init step.
+  initContainers:
+    - name: db-init
+      image: postgres:16-alpine
+      command:
+        - sh
+        - -c
+        - |
+          PGURL=$(echo "$CODER_PG_URL" | sed 's|/coder?|/postgres?|')
+          psql "$PGURL" -tc \
+            "SELECT 1 FROM pg_database WHERE datname = 'coder'" | \
+            grep -q 1 || psql "$PGURL" -c "CREATE DATABASE coder WITH OWNER postgres;"
+      env:
+        - name: CODER_PG_URL
+          valueFrom:
+            secretKeyRef:
+              name: coder-db-url
+              key: url
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+  service:
+    enable: true
+    type: ClusterIP
+
+  ingress:
+    enable: true
+    className: traefik
+    host: coder.ecoma.io

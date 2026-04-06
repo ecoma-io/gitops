@@ -1,0 +1,182 @@
+# Grafana Alloy - Telemetry collector
+# alloy v1.7.0 (app: v1.15.0)
+# Replaces: Promtail, Grafana Agent, OpenTelemetry Collector, Faro Collector
+#
+# Responsibilities:
+#   1. Kubernetes pod log collection → Loki
+#   2. OTLP trace/metric/log reception → Tempo / Mimir / Loki
+#   3. Faro frontend telemetry reception (RUM) → Loki + Tempo
+#
+# Prometheus metrics scraping is handled by kube-prometheus-stack's Prometheus.
+# ==============================================================================
+
+# DaemonSet: one Alloy pod per node (single-node cluster = one pod)
+controller:
+  type: daemonset
+
+serviceAccount:
+  create: true
+  annotations: {}
+
+# ---------------------------------------------------------------------------
+# Alloy River configuration
+# ---------------------------------------------------------------------------
+alloy:
+  configMap:
+    create: true
+    content: |
+      // ======================================================================
+      // Kubernetes pod log discovery using the Kubernetes API
+      // ======================================================================
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+
+      discovery.relabel "kubernetes_pods" {
+        targets = discovery.kubernetes.pods.targets
+
+        // Only collect logs from running containers
+        rule {
+          source_labels = ["__meta_kubernetes_pod_phase"]
+          regex         = "Pending|Succeeded|Failed"
+          action        = "drop"
+        }
+
+        // Map pod metadata to log stream labels
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+          target_label  = "app"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_node_name"]
+          target_label  = "node"
+        }
+      }
+
+      loki.source.kubernetes "pods" {
+        targets    = discovery.relabel.kubernetes_pods.output
+        forward_to = [loki.write.default.receiver]
+      }
+
+      // ======================================================================
+      // Loki remote write
+      // ======================================================================
+      loki.write "default" {
+        endpoint {
+          url = "http://loki-gateway.monitoring.svc:80/loki/api/v1/push"
+          headers = {
+            "X-Scope-OrgID" = "ecoma",
+          }
+        }
+      }
+
+      // ======================================================================
+      // OTLP receiver - accept traces, metrics, logs from applications
+      // Applications should send OTLP to alloy ClusterIP or node port.
+      // ======================================================================
+      otelcol.receiver.otlp "default" {
+        grpc {
+          endpoint = "0.0.0.0:4317"
+        }
+        http {
+          endpoint = "0.0.0.0:4318"
+        }
+
+        output {
+          traces  = [otelcol.exporter.otlphttp.tempo.input]
+          metrics = [otelcol.exporter.prometheus.mimir.input]
+        }
+      }
+
+      // Forward traces to Tempo
+      otelcol.exporter.otlphttp "tempo" {
+        client {
+          endpoint = "http://tempo.monitoring.svc:4318"
+          tls {
+            insecure = true
+          }
+        }
+      }
+
+      // Forward OTLP metrics to Mimir (via Prometheus remote_write)
+      otelcol.exporter.prometheus "mimir" {
+        forward_to = [prometheus.remote_write.mimir.receiver]
+      }
+
+      prometheus.remote_write "mimir" {
+        endpoint {
+          url = "http://mimir-gateway.monitoring.svc:80/api/v1/push"
+          headers = {
+            "X-Scope-OrgID" = "ecoma",
+          }
+        }
+      }
+
+      // ======================================================================
+      // Faro receiver - browser / frontend Real User Monitoring
+      // Applications using @grafana/faro-web-sdk send telemetry here.
+      // Expose via Traefik IngressRoute on faro.ecoma.io for browser access.
+      // ======================================================================
+      faro.receiver "frontend" {
+        server {
+          listen_address        = "0.0.0.0"
+          listen_port           = 12347
+          cors_allowed_origins  = ["https://ecoma.io", "https://*.ecoma.io"]
+          max_allowed_payload_size = "4MiB"
+        }
+
+        sourcemaps { }
+
+        output {
+          logs   = [loki.write.default.receiver]
+          traces = [otelcol.exporter.otlphttp.tempo.input]
+        }
+      }
+
+  # Extra ports for OTLP and Faro
+  extraPorts:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+    - name: faro
+      port: 12347
+      targetPort: 12347
+      protocol: TCP
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# ---------------------------------------------------------------------------
+# RBAC - Alloy needs to read pod logs from all namespaces
+# ---------------------------------------------------------------------------
+rbac:
+  create: true
+
+# Allow Alloy to be scheduled on all nodes (tolerations for any taint)
+tolerations:
+  - operator: Exists

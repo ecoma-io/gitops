@@ -1,0 +1,62 @@
+# SeaweedFS
+# Distributed object store with S3 API for Mimir/Loki/Tempo backends
+# S3 endpoint: http://seaweedfs-s3.infra.svc:8333
+# ==============================================================================
+
+master:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
+  data:
+    type: persistentVolumeClaim
+    storageClass: nvme
+    size: 5Gi
+
+volume:
+  replicas: 1  # single-node cluster
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  dataDirs:
+    - name: hot
+      type: persistentVolumeClaim
+      storageClass: nvme
+      size: 100Gi
+      maxVolumes: 50
+    - name: cold
+      type: persistentVolumeClaim
+      storageClass: hdd
+      size: 500Gi
+      maxVolumes: 100
+
+filer:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  data:
+    type: persistentVolumeClaim
+    storageClass: nvme
+    size: 5Gi
+
+s3:
+  enabled: true
+  port: 8333
+
+# Pre-create buckets for observability stack
+# Mimir: mimir-blocks, mimir-ruler, mimir-alertmanager
+# Loki: loki-chunks, loki-ruler
+# Tempo: tempo-traces

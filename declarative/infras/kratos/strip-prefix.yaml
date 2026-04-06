@@ -1,0 +1,11 @@
+# Traefik Middleware: strips /identity prefix before forwarding to Kratos
+# Required because Kratos serves at / but we expose it at api.ecoma.io/identity
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: kratos-strip-prefix
+  namespace: infra
+spec:
+  stripPrefix:
+    prefixes:
+      - /identity

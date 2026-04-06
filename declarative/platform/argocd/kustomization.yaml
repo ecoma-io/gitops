@@ -1,0 +1,312 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: argocd
+
+resources:
+  - https://raw.githubusercontent.com/argoproj/argo-cd/v3.3.6/manifests/install.yaml
+  - dex-secret.yaml
+  - ingress.yaml
+  - projects/default.yaml
+  - projects/platform.yaml
+  - projects/observability.yaml
+  - projects/infras.yaml
+  - projects/tools.yaml
+  - projects/ecoma-production.yaml
+  - projects/ecoma-staging.yaml
+  - projects/ecoma-preview.yaml
+  - projects/ecoma-dev.yaml
+  - appsets/platform.yaml
+  - appsets/observability.yaml
+  - appsets/infras.yaml
+  - appsets/tools.yaml
+  - appsets/applications.yaml
+  
+patches:
+  # REF https://argo-cd.readthedocs.io/en/stable/operator-manual/argocd-cm-yaml/
+  # Enable exec plugin support in Argo CD.
+  # Adding `/data/exec.enabled` as a string so ConfigMap.data remains map[string]string.
+  - target:
+      kind: ConfigMap
+      name: argocd-cm
+    patch: |-
+      - op: add
+        path: /data/exec.enabled
+        value: "true"
+  # REF https://argo-cd.readthedocs.io/en/stable/operator-manual/argocd-cm-yaml/
+  # Configure kustomize build options (enable helm support and relax load restrictor).
+  # Stored as a single string under `/data/kustomize.buildOptions`.
+  - target:
+      kind: ConfigMap
+      name: argocd-cm
+    patch: |-
+      - op: add
+        path: /data/kustomize.buildOptions
+        value: "--enable-helm --load-restrictor LoadRestrictionsNone"
+  - target:
+      kind: ConfigMap
+      name: argocd-cm
+    # Disable Anonymous User Access in Production
+    patch: |-
+      - op: add
+        path: /data/users.anonymous.enabled
+        value: "false"
+  - target:
+      kind: ConfigMap
+      name: argocd-cm
+    # Allow admin to create API keys for non-interactive clients.
+    patch: |-
+      - op: add
+        path: /data/accounts.admin
+        value: "apiKey, login"
+  - target:
+      kind: ConfigMap
+      name: argocd-cm
+    # Globally ignore runtime-injected StatefulSet VCT fields on all StatefulSets.
+    # These fields are set by K8s controllers at runtime and cannot be declared in
+    # any Helm/kustomize manifest, so the diff is always spurious:
+    #   - volumeClaimTemplates[].apiVersion / .kind: K8s embeds typed PVC objects
+    #     (apiVersion: v1, kind: PersistentVolumeClaim); Helm omits them.
+    #   - volumeClaimTemplates[].status: set by PVC controller after creation.
+    #   - volumeClaimTemplates[].spec.volumeMode: K8s defaults to "Filesystem"
+    #     when not specified; Helm charts typically omit it.
+    patch: |-
+      - op: add
+        path: /data/resource.customizations.ignoreDifferences.apps_StatefulSet
+        value: |
+          jqPathExpressions:
+            - .spec.volumeClaimTemplates[].apiVersion
+            - .spec.volumeClaimTemplates[].kind
+            - .spec.volumeClaimTemplates[].status
+            - .spec.volumeClaimTemplates[].spec.volumeMode
+  - target:
+      kind: ConfigMap
+      name: argocd-cm
+    # Always healthy for Ingress (no LoadBalancer IP needed with Cloudflare Tunnel)
+    patch: |
+      - op: add
+        path: /data/resource.customizations.health.networking.k8s.io_Ingress
+        value: |
+          hs = {}
+          hs.status = "Healthy"
+          hs.message = "Ingress is Healthy (Ignoring LoadBalancer IP for Cloudflare Tunnel)"
+          return hs
+  # REF https://argo-cd.readthedocs.io/en/latest/operator-manual/argocd-cmd-params-cm-yaml/
+  - target:
+      kind: ConfigMap
+      name: argocd-cmd-params-cm
+    # Set warning log level to reduce noise in production
+    # + performance tuning params
+    patch: |-
+      - op: add
+        path: /data
+        value:  
+          "server.insecure": "true"   
+          "server.log.level": "warn"
+          "reposerver.log.level": "warn"
+          "controller.log.level": "warn"
+          "dexserver.log.level": "warn"
+          "applicationsetcontroller.log.level": "warn"
+          "notificationscontroller.log.level" : "warn"
+          # 3 replicas × 12 = 36 concurrent manifest renders (covers 33 apps in 1 batch)
+          "reposerver.parallelism.limit": "12"
+          # App controller: status processors for faster drift detection
+          "controller.status.processors": "40"
+          # Operation processors to dispatch all 33 sync ops in a single pass
+          "controller.operation.processors": "40"
+          # Increase repo-server timeout to avoid premature failures during heavy helm renders
+          "controller.repo.server.timeout.seconds": "120"
+
+  # REF https://argo-cd.readthedocs.io/en/stable/operator-manual/argocd-cm-yaml/
+  # Gateway API health check was removed because we now use standard Ingress resources
+  # Set safe rolling update strategy and resources for main Argo CD deployments
+  - target:
+      kind: Deployment
+      name: argocd-server
+    patch: |-
+      - op: add
+        path: /spec/strategy
+        value:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 25%
+            maxUnavailable: 0
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+  # Add Argo CD external URL and Dex connector for GitHub (prod)
+  - target:
+      kind: ConfigMap
+      name: argocd-cm
+    patch: |-
+      - op: add
+        path: /data/url
+        value: "https://argocd.ecoma.io"
+  # Performance: increase reconciliation interval to reduce repo-server load
+  # Default is 3m; 5m is safer for kustomize+helm clusters with many infra apps
+  - target:
+      kind: ConfigMap
+      name: argocd-cm
+    patch: |-
+      - op: add
+        path: /data/timeout.reconciliation
+        value: "1m0s"
+  - target:
+      kind: Deployment
+      name: argocd-repo-server
+    patch: |-
+      - op: add
+        path: /spec/replicas
+        value: 3
+      - op: add
+        path: /spec/strategy
+        value:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 25%
+            maxUnavailable: 0
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "2000m"
+            memory: "768Mi"
+      # Fix: copyutil init container uses "ln -s" which fails on restart when the
+      # symlink already exists in the emptyDir (e.g. after K8s SandboxChanged).
+      # Replace with "ln -sf" (force) so it always succeeds on container restart.
+      - op: replace
+        path: /spec/template/spec/initContainers/0/args/0
+        value: >-
+          /bin/cp --update=none /usr/local/bin/argocd /var/run/argocd/argocd &&
+          /bin/ln -sf /var/run/argocd/argocd /var/run/argocd/argocd-cmp-server
+  - target:
+      kind: StatefulSet
+      name: argocd-application-controller
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "100m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+  - target:
+      kind: Deployment
+      name: argocd-applicationset-controller
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+  - target:
+      kind: StatefulSet
+      name: argocd-applicationset-controller
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+  - target:
+      kind: Deployment
+      name: argocd-notifications-controller
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "196Mi"
+  - target:
+      kind: Deployment
+      name: argocd-redis
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "196Mi"
+  - target:
+      kind: Deployment
+      name: argocd-dex-server
+    patch: |-
+      - op: add
+        path: /spec/strategy
+        value:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 25%
+            maxUnavailable: 0
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "250m"
+            memory: "256Mi"
+  # Add RBAC policy and default role via patch (append to base argocd-rbac-cm)
+  - target:
+      kind: ConfigMap
+      name: argocd-rbac-cm
+    patch: |-
+      - op: add
+        path: /data
+        value: {}
+      - op: add
+        path: /data/policy.csv
+        value: |
+          # Role definitions
+          g, ecoma-io:admin, administrators
+
+          # Admin: full control
+          p, administrators, applications, *, */*, allow
+          p, administrators, clusters, *, *, allow
+          p, administrators, repositories, *, *, allow   
+
+          # Default: read-only access
+          p, viewers, applications, get, */*, allow
+          p, viewers, clusters, *, *, deny
+          p, administrators, repositories, *, *, deny   
+
+          p, viewers, clusters, *, *, deny
+      - op: replace
+        path: /data/policy.default
+        value: viewers
+  # ArgoCD CRDs are large and exceed the 262144-byte annotation limit when using
+  # server-side apply (especially if kubectl.kubernetes.io/last-applied-configuration
+  # is still present from a prior client-side apply). Using Replace=true tells ArgoCD
+  # to do an HTTP PUT instead of a PATCH, bypassing the annotation size validation.
+  - target:
+      kind: CustomResourceDefinition
+    patch: |-
+      - op: add
+        path: /metadata/annotations/argocd.argoproj.io~1sync-options
+        value: Replace=true

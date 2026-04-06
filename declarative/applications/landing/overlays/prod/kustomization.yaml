@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ecoma-prod
+resources:
+  - ../../base
+patches:
+  - target:
+      group: traefik.io
+      version: v1alpha1
+      kind: Middleware
+      name: landing-env-header
+    patch: |-
+      apiVersion: traefik.io/v1alpha1
+      kind: Middleware
+      metadata:
+        name: landing-env-header
+      spec:
+        headers:
+          customResponseHeaders:
+            X-Environment: prod
+  - target:
+      group: traefik.io
+      version: v1alpha1
+      kind: IngressRoute
+      name: landing
+    patch: |-
+      - op: replace
+        path: /spec/routes/0/match
+        value: "Host(`ecoma.io`)"
+  - target:
+      kind: Deployment
+      name: landing
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2

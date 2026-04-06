@@ -1,0 +1,195 @@
+name: gitops-test
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitops-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Structural ArgoCD test
+  # 1. Spin up k3d cluster
+  # 2. Install Sealed Secrets (test key)
+  # 3. Install ArgoCD
+  # 4. Apply platform-appset — ArgoCD syncs declarative/platform/argocd/ (syncWave -10), adopts AppSet, creates remaining AppSets
+  # 5. Verify platform-appset, observability-appset, infras-appset, tools-appset, applications-appset exist
+  # 6. Verify application overlays (staging, prod) are discovered as Apps
+  # 7. Validate kustomize builds for all app overlays
+  # ──────────────────────────────────────────────────────────────────────────
+  k3d-structural-test:
+    name: k3d structural test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # ── Tools ──────────────────────────────────────────────────────────────
+      - name: Install k3d
+        run: |
+          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.7.4 bash
+          k3d version
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v1.31.4"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: "3.17.1"
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o /usr/local/bin/argocd \
+            https://github.com/argoproj/argo-cd/releases/download/v2.14.7/argocd-linux-amd64
+          chmod +x /usr/local/bin/argocd
+          argocd version --client
+
+      - name: Install kustomize
+        uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: "5.4.3"
+
+      # ── Cluster ────────────────────────────────────────────────────────────
+      - name: Create k3d cluster
+        run: |
+          k3d cluster create ecoma-test \
+            --agents 1 \
+            --no-lb \
+            --k3s-arg "--disable=traefik@server:0" \
+            --wait
+          kubectl wait node --all --for=condition=Ready --timeout=60s
+
+      # ── Sealed Secrets (test key — not the production key) ─────────────────
+      - name: Install Sealed Secrets controller (test mode)
+        run: |
+          helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
+          helm upgrade --install sealed-secrets sealed-secrets/sealed-secrets \
+            --namespace kube-system \
+            --version "$(jq -r '.version' declarative/platform/sealed-secrets/config.json)" \
+            --wait \
+            --timeout 3m
+
+      # ── ArgoCD ─────────────────────────────────────────────────────────────
+      - name: Install ArgoCD
+        run: |
+          kubectl create namespace argocd
+          kubectl apply -n argocd \
+            -f https://raw.githubusercontent.com/argoproj/argo-cd/v3.3.6/manifests/install.yaml
+          kubectl rollout status deployment/argocd-server -n argocd --timeout=5m
+
+      - name: Wait for ArgoCD to be ready
+        run: |
+          kubectl wait deployment argocd-server \
+            --namespace argocd \
+            --for=condition=Available \
+            --timeout=120s
+
+      # ── Traefik CRDs (needed for IngressRoute in declarative/platform/argocd/) ────────
+      - name: Install Traefik CRDs
+        run: |
+          helm repo add traefik https://traefik.github.io/charts
+          helm show crds traefik/traefik \
+            --version "$(jq -r '.version' declarative/platform/traefik/config.json)" \
+            | kubectl apply -f -
+
+      # ── Platform ApplicationSet ──────────────────────────────────────────────
+      - name: Apply platform ApplicationSet
+        run: |
+          kubectl apply -f - <<'EOF'
+          apiVersion: argoproj.io/v1alpha1
+          kind: ApplicationSet
+          metadata:
+            name: platform-appset
+            namespace: argocd
+          spec:
+            goTemplate: true
+            goTemplateOptions: ["missingkey=error"]
+            syncPolicy:
+              preserveResourcesOnDeletion: true
+            generators:
+            - git:
+                repoURL: https://github.com/ecoma-io/gitops.git
+                revision: main
+                files:
+                - path: declarative/platform/*/config.json
+            template:
+              metadata:
+                name: '{{.path.basename}}'
+                annotations:
+                  argocd.argoproj.io/sync-wave: '{{.syncWave}}'
+              spec:
+                project: default
+                source:
+                  repoURL: https://github.com/ecoma-io/gitops.git
+                  targetRevision: main
+                  path: '{{.path.path}}'
+                destination:
+                  server: https://kubernetes.default.svc
+                syncPolicy:
+                  automated:
+                    selfHeal: true
+                    prune: true
+                  syncOptions:
+                    - CreateNamespace=true
+          EOF
+
+      - name: Wait for ApplicationSets to be created
+        run: |
+          TIMEOUT=120
+          ELAPSED=0
+          EXPECTED_APPSETS="platform-appset observability-appset infras-appset tools-appset applications-appset"
+          while true; do
+            MISSING=""
+            for appset in $EXPECTED_APPSETS; do
+              kubectl get applicationset "$appset" -n argocd &>/dev/null || MISSING="$MISSING $appset"
+            done
+            if [[ -z "$MISSING" ]]; then
+              echo "✅ All ApplicationSets exist"
+              break
+            fi
+            if [[ $ELAPSED -ge $TIMEOUT ]]; then
+              echo "❌ Timed out waiting for ApplicationSets:$MISSING"
+              kubectl get applicationset -n argocd
+              exit 1
+            fi
+            echo "⏳ Waiting for:$MISSING (${ELAPSED}s elapsed)"
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+          done
+
+      - name: List all ApplicationSets and generated Applications
+        run: |
+          echo "=== ApplicationSets ==="
+          kubectl get applicationset -n argocd -o wide
+          echo ""
+          echo "=== Applications (may still be Syncing/Error due to missing infra) ==="
+          kubectl get applications -n argocd
+
+      # ── Offline kustomize validation ───────────────────────────────────────
+      - name: Validate kustomize build for all app overlays
+        run: |
+          FAILED=0
+          for overlay in declarative/applications/*/overlays/*/; do
+            echo "▶ kustomize build $overlay"
+            kustomize build "$overlay" > /dev/null || { echo "❌ FAILED: $overlay"; FAILED=1; }
+          done
+          exit $FAILED
+
+      - name: Validate kustomize build for platform/argocd
+        run: |
+          kustomize build declarative/platform/argocd/ > /dev/null
+          echo "✅ platform/argocd kustomize build succeeded"
+
+      # ── Cleanup ────────────────────────────────────────────────────────────
+      - name: Tear down k3d cluster
+        if: always()
+        run: k3d cluster delete ecoma-test

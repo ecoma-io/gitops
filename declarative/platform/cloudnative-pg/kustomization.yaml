@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: cnpg-system
+
+# CloudNative-PG CRDs (clusters, poolers) exceed the 262144-byte limit
+# for metadata.annotations.last-applied-configuration.
+# ServerSideApply bypasses this by tracking field ownership in the API server
+# instead of storing the full manifest in an annotation.
+commonAnnotations:
+  
+
+helmCharts:
+  - name: cloudnative-pg
+    repo: https://cloudnative-pg.github.io/charts
+    releaseName: cloudnative-pg
+    namespace: cnpg-system
+    version: 0.28.0
+    includeCRDs: true

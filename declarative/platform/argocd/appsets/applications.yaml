@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: applications-appset
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]  
+  generators:
+  - git:
+      repoURL: https://github.com/ecoma-io/gitops.git
+      revision: main
+      files:
+      - path: declarative/applications/*/overlays/*/config.json
+  template:
+    metadata:
+      name: '{{.name}}'
+      labels:
+        environment: '{{.path.basename}}'
+    spec:
+      project: '{{if eq .path.basename "prod"}}ecoma-production{{else if eq .path.basename "staging"}}ecoma-staging{{else if hasPrefix "preview" .path.basename}}ecoma-preview{{else}}ecoma-dev{{end}}'
+      source:
+        repoURL: https://github.com/ecoma-io/gitops.git
+        targetRevision: main
+        path: '{{.path.path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{.namespace}}'
+      syncPolicy:
+        automated:
+          selfHeal: true
+          prune: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+          - ServerSideDiff=true
+          - PruneLast=true
