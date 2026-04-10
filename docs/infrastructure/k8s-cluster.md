@@ -2,13 +2,13 @@
 
 ## Tổng quan
 
-Cluster chạy **K3s** trực tiếp trên server — phiên bản Kubernetes nhẹ, phù hợp single-node. Server có 24 vCPU / 48 GB RAM. Các thành phần built-in (Traefik, ServiceLB, metrics-server, local-storage) được disable để cài riêng qua Helm/ArgoCD, kiểm soát cấu hình đầy đủ hơn. CoreDNS giữ nguyên built-in để đảm bảo DNS sẵn sàng cho quá trình bootstrap, sau đó ArgoCD tiếp quản và cấu hình thêm qua `declarative/platform/coredns/`.
+Cluster chạy **K3s** bên trong một **VM trên Proxmox** — phiên bản Kubernetes nhẹ, phù hợp single-node. VM được cấu hình 24 vCPU / 48 GB RAM (overcommit từ host vật lý 32 GB + ZSwap). Các thành phần built-in (Traefik, ServiceLB, metrics-server, local-storage) được disable để cài riêng qua Helm/ArgoCD, kiểm soát cấu hình đầy đủ hơn. CoreDNS giữ nguyên built-in để đảm bảo DNS sẵn sàng cho quá trình bootstrap, sau đó ArgoCD tiếp quản và cấu hình thêm qua `declarative/platform/coredns/`.
 
 ---
 
 ## Provisioning
 
-K3s được cài thủ công trên server. Sau khi LVM Volume Groups (`vg-nvme`, `vg-hdd`) đã được tạo (xem [Server & Storage](./server.md#storage--lvm)), cài K3s với các flags:
+K3s được cài thủ công trong **VM ecoma** (trên Proxmox). Sau khi LVM Volume Groups (`vg-nvme`, `vg-hdd`) đã được tạo trong VM (xem [Server & Storage](./server.md#storage--lvm)), cài K3s với các flags:
 
 ```bash
 curl -sfL https://get.k3s.io | sh -s - \
@@ -150,7 +150,7 @@ Tổng ước tính (5 developers): ~5–6 CPU / ~14–16 GB RAM — còn headro
 
 ---
 
-> StorageClasses (`nvme`, `hdd`), LVM setup, và cách PVC provisioning hoạt động: xem [Server & Storage](./server.md#storageclasses-kubernetes).
+> StorageClasses (`nvme` ~430 GB, `hdd` ~11 TB), LVM setup trong VM, và cách PVC provisioning hoạt động: xem [Server & Storage](./server.md#storageclasses-kubernetes).
 
 ---
 

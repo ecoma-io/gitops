@@ -59,8 +59,12 @@ kubectl exec -it -n infra deployment/nats -- nats server check
 **Disk pressure:**
 
 ```bash
+# Kiểm tra trong VM
 df -h
 kubectl describe node ecoma-01 | grep -A5 "Conditions"
+
+# Kiểm tra Proxmox thin pool (SSH vào Proxmox host)
+# pvs, vgs — xết DATA% của thin pool trên host
 ```
 
 ### 4. Xử lý

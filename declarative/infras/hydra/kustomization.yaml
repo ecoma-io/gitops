@@ -6,8 +6,12 @@ resources:
   - sealed-secret.yaml
   - hydra-sealed-secret.yaml
   - grafana-oauth-sealed.yaml
+  - argocd-oauth-sealed.yaml
+  - coder-oauth-sealed.yaml
   - ingress.yaml
   - register-grafana-job.yaml
+  - register-argocd-job.yaml
+  - register-coder-job.yaml
 
 helmCharts:
   - name: hydra

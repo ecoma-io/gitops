@@ -1,15 +1,17 @@
 # Hydra token hook — lightweight Node.js webhook that injects Keto-based
-# platform roles into OIDC token claims on every Hydra token issuance.
+# platform roles and Kratos username into OIDC token claims on every Hydra token issuance.
 #
 # Flow:
 #   Hydra token endpoint
 #     → POST /hook (this service, payload: {session:{id_token:{subject:"uuid",...}}, request:{...}})
 #       → GET keto-read/relation-tuples/check (is subject a platform superadmin?)
 #       → GET keto-read/relation-tuples/check (is subject a platform grafana_admin?)
-#     ← { session: { id_token: { grafana_role }, access_token: { platform_roles } } }
+#       → GET kratos-admin/admin/identities/{id}  (fetch traits.username)
+#     ← { session: { id_token: { grafana_role, platform_roles, preferred_username }, access_token: { grafana_role, platform_roles, preferred_username } } }
 #   Hydra merges claims into JWT
 #
-# Grafana reads `grafana_role` from the ID token via role_attribute_path.
+# Grafana reads `grafana_role` via role_attribute_path; `preferred_username` via login_attribute_path.
+# Coder reads `preferred_username` via CODER_OIDC_USERNAME_FIELD.
 # Non-platform users get no grafana_role → blocked by role_attribute_strict.
 # ==============================================================================
 apiVersion: v1
@@ -23,6 +25,7 @@ data:
     const http = require('http')
 
     const KETO_READ = process.env.KETO_READ_URL || 'http://keto-read.infra.svc.cluster.local:80'
+    const KRATOS_ADMIN = process.env.KRATOS_ADMIN_URL || 'http://kratos-admin.infra.svc.cluster.local:80'
     const PORT = 3000
 
     async function checkPlatformRole(subjectId, object) {
@@ -41,6 +44,19 @@ data:
         return body.allowed === true
       } catch {
         return false
+      }
+    }
+
+    async function getKratosUsername(identityId) {
+      try {
+        const res = await fetch(`${KRATOS_ADMIN}/admin/identities/${identityId}`, {
+          signal: AbortSignal.timeout(3000),
+        })
+        if (!res.ok) return null
+        const body = await res.json()
+        return body.traits?.username || null
+      } catch {
+        return null
       }
     }
 
@@ -77,10 +93,11 @@ data:
           }
           console.error('[token-hook] subject:', subject)
 
-          // Query Keto roles in parallel
-          const [isSuperAdmin, isGrafanaAdmin] = await Promise.all([
+          // Query Keto roles and Kratos username in parallel
+          const [isSuperAdmin, isGrafanaAdmin, username] = await Promise.all([
             checkPlatformRole(subject, 'superadmin'),
             checkPlatformRole(subject, 'grafana_admin'),
+            getKratosUsername(subject),
           ])
 
           const platformRoles = []
@@ -97,11 +114,12 @@ data:
           const idTokenClaims = {}
           if (grafanaRole) idTokenClaims.grafana_role = grafanaRole
           if (platformRoles.length) idTokenClaims.platform_roles = platformRoles
+          if (username) idTokenClaims.preferred_username = username
 
           respond({
             session: {
               id_token: idTokenClaims,
-              access_token: { platform_roles: platformRoles },
+              access_token: idTokenClaims,
             },
           })
         } catch (err) {

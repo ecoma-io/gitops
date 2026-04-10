@@ -11,22 +11,22 @@ Tài liệu này mô tả lộ trình kỹ thuật để migrate hệ thống Ec
 ## Bức tranh tổng thể
 
 ```
-Hiện tại (Single-Node)          →     Mục tiêu (Multi-Node HA)
+Hiện tại (Single-Node)               →     Mục tiêu (Multi-Node HA)
 
-┌─────────────────────┐               ┌─────────────────────────────────────┐
-│  Server ecoma-01    │               │  Control Plane (3 nodes)            │
-│  ├── K3s (SQLite)   │               │  ├── ecoma-cp-01 (K3s + etcd)       │
-│  ├── All workloads  │               │  ├── ecoma-cp-02 (K3s + etcd)       │
-│  ├── LVM NVMe/HDD   │               │  └── ecoma-cp-03 (K3s + etcd)       │
-│  └── ALL storage    │               │                                     │
-└─────────────────────┘               │  Worker Nodes (N nodes)             │
-                                      │  ├── ecoma-wk-01 (apps)             │
-                                      │  ├── ecoma-wk-02 (apps)             │
-                                      │  └── ecoma-wk-0N (...)              │
-                                      │                                     │
-                                      │  Shared Storage                     │
-                                      │  └── Longhorn hoặc Rook-Ceph        │
-                                      └─────────────────────────────────────┘
+┌────────────────────────────┐              ┌─────────────────────────────────────┐
+│  Proxmox host (vật lý)     │              │  Control Plane (3 nodes)            │
+│  └── VM ecoma-01           │              │  ├── ecoma-cp-01 (K3s + etcd)       │
+│      ├── K3s (SQLite)      │              │  ├── ecoma-cp-02 (K3s + etcd)       │
+│      ├── All workloads     │              │  └── ecoma-cp-03 (K3s + etcd)       │
+│      ├── LVM NVMe/HDD      │              │                                     │
+│      └── ALL storage       │              │  Worker Nodes (N nodes)             │
+└────────────────────────────┘              │  ├── ecoma-wk-01 (apps)             │
+                                            │  ├── ecoma-wk-02 (apps)             │
+                                            │  └── ecoma-wk-0N (...)              │
+                                            │                                     │
+                                            │  Shared Storage                     │
+                                            │  └── Longhorn hoặc Rook-Ceph        │
+                                            └─────────────────────────────────────┘
 ```
 
 ---
@@ -35,10 +35,10 @@ Hiện tại (Single-Node)          →     Mục tiêu (Multi-Node HA)
 
 ### Giai đoạn 0 — Chuẩn bị (Không cần downtime)
 
-1. **Kiểm tra backup hiện tại** trước khi bắt đầu bất kỳ thay đổi nào
+1. **Kiểm tra backup hiện tại** — verify Proxmox Backup Server (PBS) đã có backup gần nhất của VM ecoma
 2. **Mua/provision các server mới** (khuyến nghị: 3 server cho control-plane, tách biệt với worker nodes)
 3. **Thiết lập network** giữa các servers (private network hoặc Tailscale mesh)
-4. **Snapshot toàn bộ dữ liệu** trên server hiện tại
+4. **Snapshot VM ecoma** qua Proxmox trước khi bắt đầu bất kỳ thay đổi nào
 
 ### Giai đoạn 1 — Thêm Storage layer (Blocker quan trọng nhất)
 

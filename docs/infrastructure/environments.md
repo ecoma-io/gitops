@@ -107,7 +107,7 @@ mirrord đã được cấu hình sẵn trong Coder workspace template (`~/.mirr
 - Mục đích: phục vụ người dùng thực
 - Deploy thủ công, yêu cầu approval từ ít nhất 1 người
 - Dữ liệu: production data thực, snapshot 1h/lần
-- Backup: VPS snapshot tự động mỗi 1 giờ do nhà cung cấp
+- Backup: Proxmox Backup Server (j1900, off-host) tự động backup VM theo lịch
 - Rollback: ArgoCD hỗ trợ rollback về revision trước trong vòng 30 giây
 
 ---

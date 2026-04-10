@@ -22,6 +22,8 @@ spec:
           env:
             - name: KETO_READ_URL
               value: http://keto-read.infra.svc.cluster.local:80
+            - name: KRATOS_ADMIN_URL
+              value: http://kratos-admin.infra.svc.cluster.local:80
           volumeMounts:
             - name: server-script
               mountPath: /app

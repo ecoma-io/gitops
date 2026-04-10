@@ -12,8 +12,11 @@ GitOps repo quản lý toàn bộ cấu hình hạ tầng và triển khai cho h
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  Server (Debian 12)                                │
-│  24 vCPU / 48 GB RAM                                             │
+│  Máy chủ vật lý on-premise                                       │
+│  Intel Xeon E5-2680v4 / 32 GB RAM / Proxmox VE                   │
+│  ZSwap (zstd, 50% RAM) + Tailscale (quảng bá 192.168.168.0/24)   │
+│                                                                  │
+│  └── VM: ecoma (24 vCPU / 48 GB RAM / Debian 12)                 │
 │                                                                  │
 │  ┌────────────────────────────────────────────────────────────┐   │
 │  │  K3s Cluster                                               │   │
@@ -42,7 +45,7 @@ GitOps repo quản lý toàn bộ cấu hình hạ tầng và triển khai cho h
 │  │  └──────────────┘ └──────────────┘ └──────────────────┘   │   │
 │  └────────────────────────────────────────────────────────────┘   │
 │                                                                  │
-│  Storage: vg-nvme (900GB NVMe) + vg-hdd (5TB HDD)               │
+│  Storage: vg-nvme (~430 GB NVMe) + vg-hdd (~11 TB HDD)           │
 │  Network: Tailscale (mgmt) + Cloudflare Tunnel (apps)            │
 └──────────────────────────────────────────────────────────────────┘
 ```

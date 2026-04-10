@@ -2,7 +2,7 @@
 
 ## Bối cảnh
 
-Cluster single-node 24 vCPU / 48 GB RAM chạy toàn bộ infrastructure, observability, và application workloads. Không có auto-scaling theo chiều ngang (node) — resource contention trên một node duy nhất có thể cascade toàn bộ hệ thống. Cần có chiến lược rõ ràng để:
+Cluster single-node chạy trong **VM ecoma** (24 vCPU / 48 GB RAM trên Proxmox host vật lý 32 GB). Chạy toàn bộ infrastructure, observability, và application workloads. Không có auto-scaling theo chiều ngang (node) — resource contention trên một node duy nhất có thể cascade toàn bộ hệ thống. Cần có chiến lược rõ ràng để:
 
 - Đảm bảo scheduler đặt pod đúng chỗ (requests)
 - Bảo vệ node khỏi memory exhaustion (limits)

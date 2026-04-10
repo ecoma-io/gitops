@@ -108,15 +108,16 @@ grafana:
       token_url: http://hydra-public.infra.svc.cluster.local:4444/oauth2/token
       api_url: http://hydra-public.infra.svc.cluster.local:4444/userinfo
       signout_redirect_url: https://oauth.ecoma.io/oauth2/sessions/logout?post_logout_redirect_uri=https%3A%2F%2Fgrafana.ecoma.io%2Flogin
-      # Map OIDC claims to Grafana user fields
-      email_attribute_path: email
-      name_attribute_path: name
-      login_attribute_path: sub
+      # Map OIDC claims to Grafana user fields.
+      # Hydra wraps custom claims under 'ext' in /userinfo; use JMESPath fallback.
+      email_attribute_path: ext.email || email
+      name_attribute_path: ext.name || name
+      login_attribute_path: ext.preferred_username || preferred_username
       # Role mapping from Hydra token hook claims (injected by token-hook service via Keto).
       # grafana_role = 'GrafanaAdmin' for platform#superadmin
       # grafana_role = 'Admin'        for platform#grafana_admin
       # grafana_role absent           → login blocked (role_attribute_strict)
-      role_attribute_path: grafana_role
+      role_attribute_path: ext.grafana_role || grafana_role
       role_attribute_force_sync: true
       # Allow Grafana server admin assignment (required to honor grafana_role=GrafanaAdmin).
       # Without this, GrafanaAdmin claim is ignored and login is blocked by role_attribute_strict.

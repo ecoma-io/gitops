@@ -5,6 +5,7 @@ namespace: argocd
 resources:
   - https://raw.githubusercontent.com/argoproj/argo-cd/v3.3.6/manifests/install.yaml
   - dex-secret.yaml
+  - argocd-oidc-sealed.yaml
   - ingress.yaml
   - projects/default.yaml
   - projects/platform.yaml
@@ -139,7 +140,7 @@ patches:
           limits:
             cpu: "500m"
             memory: "512Mi"
-  # Add Argo CD external URL and Dex connector for GitHub (prod)
+  # Add Argo CD external URL and OIDC config via Hydra
   - target:
       kind: ConfigMap
       name: argocd-cm
@@ -147,6 +148,29 @@ patches:
       - op: add
         path: /data/url
         value: "https://argocd.ecoma.io"
+  # Configure OIDC directly via Hydra (bypasses Dex).
+  # groupsClaim: platform_roles — maps token-hook injected roles to ArgoCD groups.
+  # clientID/clientSecret reference the argocd-oidc SealedSecret in argocd namespace.
+  - target:
+      kind: ConfigMap
+      name: argocd-cm
+    patch: |-
+      - op: add
+        path: /data/oidc.config
+        value: |
+          name: Ecoma SSO
+          issuer: https://oauth.ecoma.io
+          clientID: $argocd-oidc:clientID
+          clientSecret: $argocd-oidc:clientSecret
+          requestedScopes:
+            - openid
+            - email
+            - profile
+            - offline_access
+          requestedIDTokenClaims:
+            email:
+              essential: true
+          groupsClaim: platform_roles
   # Performance: increase reconciliation interval to reduce repo-server load
   # Default is 3m; 5m is safer for kustomize+helm clusters with many infra apps
   - target:
@@ -284,19 +308,18 @@ patches:
         path: /data/policy.csv
         value: |
           # Role definitions
-          g, ecoma-io:admin, administrators
+          # superadmin → injected by token-hook via Keto platform:superadmin relation
+          g, superadmin, administrators
 
           # Admin: full control
           p, administrators, applications, *, */*, allow
           p, administrators, clusters, *, *, allow
-          p, administrators, repositories, *, *, allow   
+          p, administrators, repositories, *, *, allow
 
           # Default: read-only access
           p, viewers, applications, get, */*, allow
           p, viewers, clusters, *, *, deny
-          p, administrators, repositories, *, *, deny   
-
-          p, viewers, clusters, *, *, deny
+          p, viewers, repositories, get, *, allow
       - op: replace
         path: /data/policy.default
         value: viewers

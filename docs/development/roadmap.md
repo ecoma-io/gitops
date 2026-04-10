@@ -16,8 +16,8 @@ Setup server, cấu hình LVM và cài K3s thủ công.
 
 | Task | Mô tả                                                                                                     | Deliverable                     |
 | ---- | --------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| 1.1  | Cài Tailscale trên server (management access qua private mesh VPN)                                        | Server accessible qua Tailscale |
-| 1.2  | Setup LVM trên Data NVMe (900 GB) → tạo `vg-nvme`, trên HDD (5 TB) → tạo `vg-hdd`                         | `vgs` output chính xác          |
+| 1.1  | Cài Tailscale trên Proxmox host (quảng bá subnet 192.168.168.0/24 vào private mesh VPN) + tạo VM ecoma (24 vCPU / 48 GB RAM) | Server/VM accessible qua Tailscale |
+| 1.2  | Setup LVM trong VM ecoma trên Data NVMe (~430 GB) → tạo `vg-nvme`, trên HDD (~11 TB) → tạo `vg-hdd`       | `vgs` output chính xác          |
 | 1.3  | Cài K3s (disable traefik, local-storage, servicelb, metrics-server), `--node-name ecoma-01` | `kubectl get nodes` → Ready     |
 | 1.4  | Verify kubeconfig hoạt động                                                                               | `kubectl cluster-info` OK       |
 
@@ -138,6 +138,6 @@ Kiểm tra end-to-end toàn bộ hệ thống, xác nhận kiến trúc.
 | 8.2  | **Rollback test:** Deploy version lỗi → phát hiện → rollback qua ArgoCD → verify                                                                     | Rollback < 5 phút                     |
 | 8.3  | **Monitoring test:** Gây load trên sample app → verify metrics/logs/traces xuất hiện trên Grafana                                                    | Dashboard hiển thị đúng data          |
 | 8.4  | **Alert test:** Trigger alert condition → verify email notification                                                                                  | Alert email đến Mailpit               |
-| 8.5  | **Backup test:** Restore VPS snapshot trên môi trường test, verify dữ liệu OK                                                                        | Restore thành công, service hoạt động |
+| 8.5  | **Backup test:** Restore VM từ Proxmox Backup Server (PBS) trên môi trường test, verify dữ liệu OK                                                   | Restore thành công, service hoạt động |
 | 8.6  | **Coder template update test:** Thay đổi template → commit → ArgoCD detect → auto sync                                                               | Template update flow hoạt động        |
 | 8.7  | Review & cập nhật docs: ghi nhận các thay đổi so với thiết kế ban đầu, cập nhật ADRs                                                                 | Docs phản ánh thực tế                 |

@@ -4,6 +4,7 @@ namespace: coder
 
 resources:
   - sealed-secret.yaml
+  - coder-oidc-sealed.yaml
 
 helmCharts:
   - name: coder

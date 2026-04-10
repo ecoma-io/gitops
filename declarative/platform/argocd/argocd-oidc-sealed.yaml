@@ -1,0 +1,17 @@
+﻿---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: argocd-oidc
+  namespace: argocd
+spec:
+  encryptedData:
+    clientID: AgA22Vh3s9hnFs2M2iONxSyHwGKO+1YSWAwfgSeky1mrF/AReStktBZcYDoIfODShXysr/JtTOXPWy6Tb+cTEylBP8OEPJAXr2/PkbdGE6KzROveDnwpwe4F+2jlmDFXD19GCU3fARoqVkT6SD3zNl2MRCgh0B3w6t28JJPtYBmBQkEa1NTZ/Ak21tu3BqTx5xA8+CY378aRBNvB87EfhHwKkkxyRpjadzedYO0mOdGyWZnwUptWQ31Qv69rNwELterNDi4b6kM+nIzGW6oYcGADwhAnqyZc6vqyWbA+NtirnJgoS0In0VKv5bCs5kKe9JZxjKUzXXYQyzZZUYOfuPozcEmHfGh7SMgCQMTBbv5NRPly29R95A01xMtBR7YA9wYWLiuTmpSi5o8STOMioyxgzfxI1MVqsu/Eno0MbRyKJVJiH8qFNTkCDgWrWEB+W/PniFpFYZnEArq9lMWYGXorvFS6/yFodvKjNj1l/aPi+aa2NuXnQdefNxz5Jm5NODmh00Azc39MPOA4J/Q1BJ8P6AWDpd1EY0UARrpk27c3s5zBZvOApmam3suRwM3nLM1nDS1wFgwFKdXbF1aipyPVdHsZyLzTl7UYfEVeYBYbCzBDebHd/PIsuyLlsYcVG/Xw9rztHoDVPA22lV/m+A6JzYqZT/I7GsFB+2mCAOxJIVlHWugPBDna9NF0xg+qihepjSfhrxw=
+    clientSecret: AgBii6XL/c9ZaCU1ZwFxUYlez0/F0XE0U9CJddSlYMONXPYcH6Gj2+HSUaFRrIBozYJBnu1IzcYknaB0VqJLZG9l81M/XPKfR61bruWk/2iQZVC5txykWmd9d+69OssAGMgtAxj9zlT8eHCEaN7G6QD7jFUcBjPn8u/5wTlxKXxxIyElBTUWxkry2W+F8azq4IzX2c28gq0Rd4sKZY2vfPtCkEXMrxt9TfJzYgkMPlBrbFEoy/2jNRU+hvxbfqWX1qM51FPy6ebMHgaEpb0DY/VQt274MSvd+wcjp3HDtKT7BjOvfPzpc9Z94WcBheG++l07zvH1ZaCKTlrZm/50lIVWuiPQukDQkb9hqd7FMsKoP7+HorsNTb+JoH+YPZJvLq08sJzeJM64sMHxz6amXu2yuaA2azqGHJm5AFtIr5kUcVLRC1RUXgVCLR2c1JJxWeqz/1NMlLnXpB/GMmLLLZlzCGT5VOW2zYh9MyvldC7OsF1eA7E+IEdE5/GJRIHLspBsuBvkHpHgV42Gliea7RTiFwsE7Q9zzJ9BZIypX6N/QjFrYgZ+u/zKFNbJWM/VLsZu8DaXFKDukhElgfIxdFICFWg4HwFEUN4oHxzVzSWVEXrA+vNK10dfEeK5/97dhZOQY0eZVQm4IPtx8v31ovPHMA4EzXkAejAwLlm9/MPQIAWpMaei2pDfAt6VqbPocdX5Cnt4WhzsMOlQKhgBjvg6XbYZ1GZjiO4KZ7+A4UX9Bw==
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/part-of: argocd
+      name: argocd-oidc
+      namespace: argocd
+    type: Opaque

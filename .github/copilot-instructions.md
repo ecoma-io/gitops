@@ -6,7 +6,7 @@ This file defines the conventions, patterns, and rules for AI-assisted code gene
 
 ## Project Overview
 
-This is a **GitOps monorepo** for the Ecoma platform. It is the **single source of truth** for all Kubernetes resources managed by **ArgoCD** on a single-node **K3s** cluster (24 vCPU / 48 GB RAM, Debian 12).
+This is a **GitOps monorepo** for the Ecoma platform. It is the **single source of truth** for all Kubernetes resources managed by **ArgoCD** on a single-node **K3s** cluster (24 vCPU / 48 GB RAM, Debian 12 — running as a Proxmox VM on a physical server with Intel Xeon E5-2680v4 / 32 GB RAM).
 
 - ArgoCD version: `v3.3.6`
 - Kustomize version: `v5.8.1` (inside ArgoCD repo-server)
