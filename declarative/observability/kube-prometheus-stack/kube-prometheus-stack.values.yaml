@@ -127,6 +127,9 @@ grafana:
       role_attribute_strict: true
       # Use PKCE for added security
       use_pkce: true
+    log:
+      mode: console
+      level: debug
     auth:
       disable_login_form: true
       disable_signout_menu: false
