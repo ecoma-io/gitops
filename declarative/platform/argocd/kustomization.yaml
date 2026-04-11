@@ -54,14 +54,6 @@ patches:
   - target:
       kind: ConfigMap
       name: argocd-cm
-    # Allow admin to create API keys for non-interactive clients.
-    patch: |-
-      - op: add
-        path: /data/accounts.admin
-        value: "apiKey, login"
-  - target:
-      kind: ConfigMap
-      name: argocd-cm
     # Globally ignore runtime-injected StatefulSet VCT fields on all StatefulSets.
     # These fields are set by K8s controllers at runtime and cannot be declared in
     # any Helm/kustomize manifest, so the diff is always spurious:

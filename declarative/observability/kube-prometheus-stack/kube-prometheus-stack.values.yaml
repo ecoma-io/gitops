@@ -129,7 +129,6 @@ grafana:
       use_pkce: true
     log:
       mode: console
-      level: debug
     auth:
       disable_login_form: true
       disable_signout_menu: false
