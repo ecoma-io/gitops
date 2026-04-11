@@ -89,8 +89,6 @@ grafana:
     - name: grafana-oauth
 
   grafana.ini:
-    log:
-      level: debug
     server:
       domain: grafana.ecoma.io
       root_url: https://grafana.ecoma.io
