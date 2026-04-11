@@ -116,12 +116,14 @@ data:
           if (platformRoles.length) idTokenClaims.platform_roles = platformRoles
           if (username) idTokenClaims.preferred_username = username
 
-          respond({
+          const response = {
             session: {
               id_token: idTokenClaims,
               access_token: idTokenClaims,
             },
-          })
+          }
+          console.error('[token-hook] responding:', JSON.stringify(response))
+          respond(response)
         } catch (err) {
           console.error('[token-hook] error:', err.message)
           // Return empty claims on error — never block login
